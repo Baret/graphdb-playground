@@ -1,6 +1,6 @@
 spring:
   neo4j:
-    uri: neo4j+s://abcd.databases.neo4j.io
+    uri: neo4j+s://localhost:9999
     database: database
     authentication:
       username: neo4j
