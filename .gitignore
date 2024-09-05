@@ -18,3 +18,6 @@ buildNumber.properties
 
 # intelliJ
 .idea/
+
+# other files
+application-local.yaml
