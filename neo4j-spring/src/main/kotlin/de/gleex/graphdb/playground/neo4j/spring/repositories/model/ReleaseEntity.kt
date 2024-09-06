@@ -8,9 +8,9 @@ import org.springframework.data.neo4j.core.schema.Node
 data class ReleaseEntity(
     @Id
     @GeneratedValue
-    val id: Long,
-    val a: String,
+    var id: Long?,
     val g: String,
+    val a: String,
     val version: String,
     val major: Int,
     val minor: Int,
