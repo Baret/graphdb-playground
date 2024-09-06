@@ -15,7 +15,7 @@ import reactor.core.publisher.Flux
 class ReleaseController(private val releaseRepository: ReleaseRepository) {
 
     @GetMapping("/all")
-    fun allReleases(): Flux<Release> {
+    suspend fun allReleases(): Flux<Release> {
         return releaseRepository.findAll()
 //            .asFlow()
             .map {

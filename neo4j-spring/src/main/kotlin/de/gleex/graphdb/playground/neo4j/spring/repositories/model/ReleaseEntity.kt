@@ -1,11 +1,13 @@
 package de.gleex.graphdb.playground.neo4j.spring.repositories.model
 
+import org.springframework.data.neo4j.core.schema.GeneratedValue
 import org.springframework.data.neo4j.core.schema.Id
 import org.springframework.data.neo4j.core.schema.Node
 
 @Node("Release")
 data class ReleaseEntity(
     @Id
+    @GeneratedValue
     val id: Long,
     val a: String,
     val g: String,
