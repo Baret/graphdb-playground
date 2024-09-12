@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import reactor.core.publisher.Mono
 
 private val log = KotlinLogging.logger {  }
 
@@ -51,13 +52,13 @@ class ReleaseController(private val releaseRepository: ReleaseRepository) {
     }
 
     @PostMapping("/create/{groupId}/{artifactId}/{version}")
-    suspend fun saveRelease(groupId: String, artifactId: String, version: String) {
+    suspend fun saveRelease(groupId: String, artifactId: String, version: String): Mono<Release> {
         val validRelease = Release(
             GroupId(groupId),
             ArtifactId(artifactId),
             Version(version)
         )
-        releaseRepository.save(
+        return releaseRepository.save(
             ReleaseEntity(
                 null,
                 validRelease.groupId.gId,
@@ -67,6 +68,12 @@ class ReleaseController(private val releaseRepository: ReleaseRepository) {
                 validRelease.version.minor,
                 validRelease.version.patch
             )
-        )
+        ).map {
+            Release(
+                GroupId(it.g),
+                ArtifactId(it.a),
+                Version(it.version)
+            )
+        }
     }
 }
