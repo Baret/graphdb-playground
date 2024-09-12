@@ -9,7 +9,7 @@ value class ArtifactId private constructor(val aId: String) {
         /**
          * The regex that may be used to check if a string contains a valid [ArtifactId].
          */
-        val ARTIFACT_ID_REGEX = Regex("[a-zA-z]([a-zA-Z0-9\\-]*.?)+")
+        val ARTIFACT_ID_REGEX = Regex("[a-zA-z]([a-zA-Z0-9\\-_]*.?)+")
 
         /**
          * Create a valid [ArtifactId] object from the given string.

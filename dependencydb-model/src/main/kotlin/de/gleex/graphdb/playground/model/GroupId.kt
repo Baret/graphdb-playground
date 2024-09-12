@@ -9,7 +9,7 @@ value class GroupId private constructor(val gId: String) {
         /**
          * The regex that may be used to check if a string contains a valid [GroupId].
          */
-        val GROUP_ID_REGEX = Regex("[a-zA-z]([a-zA-Z0-9\\-]*.?)+")
+        val GROUP_ID_REGEX = Regex("[a-zA-z]([a-zA-Z0-9_]*.?)+")
 
         /**
          * Create a valid [GroupId] object from the given string.
