@@ -53,6 +53,7 @@ class ReleaseController(private val releaseRepository: ReleaseRepository) {
 
     @PostMapping("/create/{groupId}/{artifactId}/{version}")
     suspend fun saveRelease(groupId: String, artifactId: String, version: String): Mono<Release> {
+        log.info { "Creating release model object with groupId=$groupId artifactId=$artifactId version=$version" }
         val validRelease = Release(
             GroupId(groupId),
             ArtifactId(artifactId),
