@@ -24,34 +24,22 @@ class ReleaseController(private val releaseService: ReleaseService) {
 
     @GetMapping("/get")
     suspend fun allReleases(): Flow<Release> {
-        return releaseService.findAll()
-            .asFlow()
-            .map {
-                Release(
-                    GroupId(it.g),
-                    ArtifactId(it.a),
-                    Version(it.version)
-                )
-            }
+        return releaseService.all()
     }
 
     @GetMapping("/get/{groupId}")
     suspend fun releasesByGroupId(@PathVariable groupId: String): Flow<Release> {
         log.debug { "Getting release for groupID '$groupId'" }
         val validGroupId = GroupId(groupId)
-        return releaseService.findAllByG(validGroupId.gId)
-            .asFlow()
-            .map {
-                Release(
-                    GroupId(it.g),
-                    ArtifactId(it.a),
-                    Version(it.version)
-                )
-            }
+        return releaseService.findReleasesInGroup(validGroupId)
     }
 
     @PostMapping("/create/{groupId}/{artifactId}/{version}")
-    suspend fun saveRelease(groupId: String, artifactId: String, version: String): Mono<Release> {
+    suspend fun saveRelease(
+        @PathVariable(required = true) groupId: String,
+        @PathVariable(required = true) artifactId: String,
+        @PathVariable(required = true) version: String
+    ): Flow<Release> {
         log.info { "Creating release model object with groupId=$groupId artifactId=$artifactId version=$version" }
         val validRelease = Release(
             GroupId(groupId),
