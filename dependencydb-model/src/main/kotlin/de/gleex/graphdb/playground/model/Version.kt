@@ -4,8 +4,11 @@ data class Version private constructor(
     val versionString: String,
     val major: Int,
     val minor: Int,
-    val patch: Int
+    val patch: Int,
+    val suffix: String?
 ) {
+    val isSnapshot: Boolean = suffix.isNullOrEmpty().not()
+
     companion object {
             /**
          * The Regex to match a valid version.
@@ -26,11 +29,13 @@ data class Version private constructor(
             requireNotNull(matchResult) {
                 "No version detected in given string '$versionString'"
             }
+            val suffix: String? = matchResult.groups["suffix"]?.value?.trim().takeIf { it?.isNotEmpty() ?: false }
             return Version(
                 versionString,
                 matchResult.groups["major"]?.value?.toIntOrNull() ?: 0,
                 matchResult.groups["minor"]?.value?.toIntOrNull() ?: 0,
-                matchResult.groups["patch"]?.value?.toIntOrNull() ?: 0
+                matchResult.groups["patch"]?.value?.toIntOrNull() ?: 0,
+                suffix
             )
         }
     }
