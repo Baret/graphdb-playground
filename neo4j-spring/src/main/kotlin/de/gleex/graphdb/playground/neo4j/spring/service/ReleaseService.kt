@@ -41,7 +41,8 @@ class ReleaseService(private val releaseRepository: ReleaseRepository) {
             Release(
                 GroupId(it.g),
                 ArtifactId(it.a),
-                Version(it.version)
+                Version(it.version),
+                emptySet()
             )
         }
 }

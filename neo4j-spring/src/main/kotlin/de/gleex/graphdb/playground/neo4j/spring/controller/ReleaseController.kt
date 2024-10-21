@@ -46,7 +46,8 @@ class ReleaseController(private val releaseService: ReleaseService) {
         val validRelease = Release(
             GroupId(groupId),
             ArtifactId(artifactId),
-            Version(version)
+            Version(version),
+            emptySet()
         )
         return releaseService.save(validRelease)
     }

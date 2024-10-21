@@ -9,8 +9,8 @@ import org.springframework.data.neo4j.core.schema.Relationship.Direction.OUTGOIN
 @Node("Artifact")
 data class ArtifactEntity(
     @Id
-    @GeneratedValue
-    var id: Long?,
+    @GeneratedValue(generatorRef = "mavenCoordinateIdGenerator")
+    var id: String?,
     val g: String,
     val a: String,
     @Relationship(type = "HAS_RELEASE", direction = OUTGOING)

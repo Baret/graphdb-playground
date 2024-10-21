@@ -7,8 +7,8 @@ import org.springframework.data.neo4j.core.schema.Node
 @Node("Release")
 data class ReleaseEntity(
     @Id
-    @GeneratedValue
-    var id: Long?,
+    @GeneratedValue(generatorRef = "mavenCoordinateIdGenerator")
+    var id: String?,
     val g: String,
     val a: String,
     val version: String,
