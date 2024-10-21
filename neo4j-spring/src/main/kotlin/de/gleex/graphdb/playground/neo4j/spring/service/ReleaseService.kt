@@ -1,9 +1,6 @@
 package de.gleex.graphdb.playground.neo4j.spring.service
 
-import de.gleex.graphdb.playground.model.ArtifactId
-import de.gleex.graphdb.playground.model.GroupId
-import de.gleex.graphdb.playground.model.Release
-import de.gleex.graphdb.playground.model.Version
+import de.gleex.graphdb.playground.model.*
 import de.gleex.graphdb.playground.neo4j.spring.repositories.ReleaseRepository
 import de.gleex.graphdb.playground.neo4j.spring.repositories.model.ReleaseEntity
 import kotlinx.coroutines.flow.Flow
@@ -24,27 +21,23 @@ class ReleaseService(private val releaseRepository: ReleaseRepository) {
             minor = validRelease.version.minor,
             patch = validRelease.version.patch
         )
-    ).map {
-        Release(
-            GroupId(it.g),
-            ArtifactId(it.a),
-            Version(it.version)
-        )
-    }.asFlow()
+    ).asFlow()
+        .mapToDomainModel()
 
     fun findReleasesInGroup(validGroupId: GroupId): Flow<Release> = releaseRepository.findAllByG(validGroupId.gId)
         .asFlow()
-        .map {
-            Release(
-                GroupId(it.g),
-                ArtifactId(it.a),
-                Version(it.version)
-            )
-        }
+        .mapToDomainModel()
 
     fun all(): Flow<Release> = releaseRepository.findAll()
         .asFlow()
-        .map {
+        .mapToDomainModel()
+
+    fun findReleasesOfArtifact(artifact: Artifact): Flow<Release> = releaseRepository.findAllByGAndA(artifact.groupId.gId, artifact.artifactId.aId)
+        .asFlow()
+        .mapToDomainModel()
+
+    private fun Flow<ReleaseEntity>.mapToDomainModel(): Flow<Release> =
+        map {
             Release(
                 GroupId(it.g),
                 ArtifactId(it.a),

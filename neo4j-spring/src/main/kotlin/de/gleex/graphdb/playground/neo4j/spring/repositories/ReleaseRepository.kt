@@ -6,4 +6,5 @@ import reactor.core.publisher.Flux
 
 interface ReleaseRepository: ReactiveNeo4jRepository<ReleaseEntity, Long> {
     fun findAllByG(g: String): Flux<ReleaseEntity>
+    fun findAllByGAndA(g: String, a: String): Flux<ReleaseEntity>
 }
