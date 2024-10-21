@@ -11,6 +11,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.absolutePathString
 import kotlin.io.path.exists
+import kotlin.io.path.nameWithoutExtension
 
 private val log = KotlinLogging.logger { }
 
@@ -57,7 +58,13 @@ suspend fun main() {
     log.info { "MAVEN_HOME=$mavenHome" }
     val request: InvocationRequest = DefaultInvocationRequest().apply {
         pomFile = localPomFile.toFile()
-        goals = listOf("validate", "dependency:tree")
+        goals = listOf("dependency:tree")
+        addArgs(
+            listOf(
+                "-DoutputFile=${localPomFile.nameWithoutExtension}_depTree_verbose.dot",
+                "-DoutputType=dot"
+            )
+        )
         isRecursive = false
         this.mavenHome = mavenHome
         updateSnapshotsPolicy = UpdateSnapshotsPolicy.ALWAYS
