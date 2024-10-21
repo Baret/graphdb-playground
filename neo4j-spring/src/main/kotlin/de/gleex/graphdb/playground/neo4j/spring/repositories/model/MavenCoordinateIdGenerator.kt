@@ -15,11 +15,11 @@ class MavenCoordinateIdGenerator: IdGenerator<String> {
         return when(primaryLabel) {
             "Artifact" -> {
                 val artifactEntity = entity as ArtifactEntity
-                "${artifactEntity.a}:${artifactEntity.g}"
+                "${artifactEntity.g}:${artifactEntity.a}"
             }
             "Release" -> {
                 val releaseEntity = entity as ReleaseEntity
-                "${releaseEntity.a}:${releaseEntity.g}:jar:${releaseEntity.version}:compile"
+                "${releaseEntity.g}:${releaseEntity.a}:jar:${releaseEntity.version}:compile"
             }
             else -> throw IllegalStateException("Can not generate ID for primaryLabel=$primaryLabel and entity=$entity")
         }
