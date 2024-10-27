@@ -4,6 +4,8 @@ import org.springframework.data.neo4j.core.schema.DynamicLabels
 import org.springframework.data.neo4j.core.schema.GeneratedValue
 import org.springframework.data.neo4j.core.schema.Id
 import org.springframework.data.neo4j.core.schema.Node
+import org.springframework.data.neo4j.core.schema.Relationship
+import org.springframework.data.neo4j.core.schema.Relationship.Direction.OUTGOING
 
 @Node("Release")
 data class ReleaseEntity(
@@ -15,7 +17,9 @@ data class ReleaseEntity(
     val version: String,
     val major: Int,
     val minor: Int,
-    val patch: Int
+    val patch: Int,
+    @Relationship(value = "DEPENDS_ON", direction = OUTGOING)
+    val dependencies: Set<DependencyRelationship>
 ) {
     @DynamicLabels
     val additionalLabels: Set<String> = if (g.startsWith("de.gleex")) {

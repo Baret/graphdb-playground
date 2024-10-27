@@ -44,11 +44,22 @@ class ReleaseController(private val releaseService: ReleaseService) {
     ): Flow<Release> {
         log.info { "Creating release model object with groupId=$groupId artifactId=$artifactId version=$version" }
         val validRelease = Release(
-            GroupId(groupId),
-            ArtifactId(artifactId),
-            Version(version),
-            emptySet()
+            groupId = GroupId(groupId),
+            artifactId = ArtifactId(artifactId),
+            version = Version(version),
+            dependencies = setOf(
+                Dependency(
+                    isTransitive = false,
+                    Release(
+                        groupId = GroupId("de.gleex.kng"),
+                        artifactId = ArtifactId("kotlin-name-generator-api"),
+                        version = Version("0.1.0"),
+                        dependencies = emptySet()
+                    )
+                )
+            )
         )
+        log.info { "Saving release: $validRelease" }
         return releaseService.save(validRelease)
     }
 }
