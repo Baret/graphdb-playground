@@ -51,9 +51,9 @@ class ReleaseController(private val releaseService: ReleaseService) {
                 Dependency(
                     isTransitive = false,
                     Release(
-                        groupId = GroupId("de.gleex.kng"),
-                        artifactId = ArtifactId("kotlin-name-generator-api"),
-                        version = Version("0.1.0"),
+                        groupId = GroupId("org.jetbrains.kotlin"),
+                        artifactId = ArtifactId("kotlin-stdlib"),
+                        version = Version("1.9.20"),
                         dependencies = emptySet()
                     )
                 )

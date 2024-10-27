@@ -1,5 +1,7 @@
 package de.gleex.graphdb.playground.neo4j.spring.service
 
+import de.gleex.graphdb.playground.model.*
+import de.gleex.graphdb.playground.neo4j.spring.config.MavenConfig
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,8 +18,27 @@ import kotlin.io.path.nameWithoutExtension
 private val log = KotlinLogging.logger { }
 
 @Service
-class PomReadingService {
+class PomReadingService(private val config: MavenConfig) {
+    private val mavenInvoker: Invoker by lazy {
+        DefaultInvoker().apply {
+            mavenHome = config.home.toFile()
+            workingDirectory = config.workingDir.toFile()
+        }
+    }
 
+    fun directDependenciesOf(releaseCoordinate: ReleaseCoordinate) : Set<ReleaseCoordinate> {
+        val pomPath: Path = locatePomFile(releaseCoordinate)
+        val directDependencies: Set<ReleaseCoordinate> = directDependenciesOfPomFile(pomPath)
+        return directDependencies
+    }
+
+    private fun locatePomFile(releaseCoordinate: ReleaseCoordinate): Path {
+        TODO("Not yet implemented")
+    }
+
+    private fun directDependenciesOfPomFile(pomPath: Path): Set<ReleaseCoordinate> {
+        TODO("Not yet implemented")
+    }
 }
 
 suspend fun main() {
@@ -58,9 +79,11 @@ suspend fun main() {
     log.info { "MAVEN_HOME=$mavenHome" }
     val request: InvocationRequest = DefaultInvocationRequest().apply {
         pomFile = localPomFile.toFile()
-        goals = listOf("dependency:tree")
+        goals = listOf("org.apache.maven.plugins:maven-dependency-plugin:3.8.1:tree")
         addArgs(
             listOf(
+                "-B",
+                "-Dmaven.repo.local=./repo/",
                 "-DoutputFile=${localPomFile.nameWithoutExtension}_depTree_verbose.dot",
                 "-DoutputType=dot"
             )
