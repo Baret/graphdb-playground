@@ -1,9 +1,6 @@
 package de.gleex.graphdb.playground.neo4j.spring.repositories.model
 
-import org.springframework.data.neo4j.core.schema.GeneratedValue
-import org.springframework.data.neo4j.core.schema.Id
-import org.springframework.data.neo4j.core.schema.Node
-import org.springframework.data.neo4j.core.schema.Relationship
+import org.springframework.data.neo4j.core.schema.*
 import org.springframework.data.neo4j.core.schema.Relationship.Direction.OUTGOING
 
 @Node("Artifact")
@@ -15,4 +12,11 @@ data class ArtifactEntity(
     val a: String,
     @Relationship(type = "HAS_RELEASE", direction = OUTGOING)
     val releases: Set<ReleaseEntity>
-)
+) {
+    @DynamicLabels
+    val additionalLabels: Set<String> = if (g.startsWith("de.gleex")) {
+        setOf("Internal")
+    } else {
+        emptySet()
+    }
+}
