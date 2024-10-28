@@ -43,23 +43,12 @@ class ReleaseController(private val releaseService: ReleaseService) {
         @PathVariable(required = true) version: String
     ): Flow<Release> {
         log.info { "Creating release model object with groupId=$groupId artifactId=$artifactId version=$version" }
-        val validRelease = Release(
+        val releaseCoordinate = ReleaseCoordinate(
             groupId = GroupId(groupId),
             artifactId = ArtifactId(artifactId),
-            version = Version(version),
-            dependencies = setOf(
-                Dependency(
-                    isTransitive = false,
-                    Release(
-                        groupId = GroupId("org.jetbrains.kotlin"),
-                        artifactId = ArtifactId("kotlin-stdlib"),
-                        version = Version("1.9.20"),
-                        dependencies = emptySet()
-                    )
-                )
-            )
+            version = Version(version)
         )
-        log.info { "Saving release: $validRelease" }
-        return releaseService.save(validRelease)
+        log.info { "Saving release: $releaseCoordinate" }
+        return releaseService.save(releaseCoordinate)
     }
 }

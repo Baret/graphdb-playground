@@ -1,5 +1,6 @@
 package de.gleex.graphdb.playground.neo4j.spring.repositories.model
 
+import org.springframework.data.annotation.ReadOnlyProperty
 import org.springframework.data.neo4j.core.schema.DynamicLabels
 import org.springframework.data.neo4j.core.schema.GeneratedValue
 import org.springframework.data.neo4j.core.schema.Id
@@ -19,12 +20,11 @@ data class ReleaseEntity(
     val minor: Int,
     val patch: Int,
     @Relationship(value = "DEPENDS_ON", direction = OUTGOING)
-    val dependencies: Set<DependencyRelationship>
-) {
+    val dependencies: Set<DependencyRelationship>,
     @DynamicLabels
     val additionalLabels: Set<String> = if (g.startsWith("de.gleex")) {
         setOf("Internal")
     } else {
         emptySet()
     }
-}
+)

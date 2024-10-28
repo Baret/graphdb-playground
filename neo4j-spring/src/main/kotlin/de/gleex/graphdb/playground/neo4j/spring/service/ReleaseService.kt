@@ -1,21 +1,50 @@
 package de.gleex.graphdb.playground.neo4j.spring.service
 
 import de.gleex.graphdb.playground.model.*
+import de.gleex.graphdb.playground.neo4j.spring.repositories.ArtifactRepository
 import de.gleex.graphdb.playground.neo4j.spring.repositories.ReleaseRepository
 import de.gleex.graphdb.playground.neo4j.spring.repositories.model.DependencyRelationship
 import de.gleex.graphdb.playground.neo4j.spring.repositories.model.ReleaseEntity
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEmpty
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.reactive.asFlow
+import kotlinx.coroutines.reactor.awaitSingle
+import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.stereotype.Service
+import reactor.core.publisher.Mono
+import reactor.kotlin.core.publisher.switchIfEmpty
 
 @Service
-class ReleaseService(private val releaseRepository: ReleaseRepository) {
-    fun save(validRelease: Release): Flow<Release> = releaseRepository.save(
-            validRelease.toDbEntity()
-        )
-        .asFlow()
-        .mapToDomainModel()
+class ReleaseService(
+    private val releaseRepository: ReleaseRepository,
+    private val artifactService: ArtifactService
+) {
+    suspend fun save(releaseCoordinate: ReleaseCoordinate): Flow<Release> {
+        return coroutineScope {
+            releaseRepository.findById(releaseCoordinate.toString())
+                .asFlow()
+                .onEmpty {
+                    val releaseToSave = with(releaseCoordinate) {
+                        Release(groupId, artifactId, version, emptySet())
+                    }
+                    emitAll(releaseRepository.save(releaseToSave.toDbEntity()).asFlow())
+                }
+                .map { savedRelease ->
+                    savedRelease.also {
+                        artifactService.addRelease(
+                            ArtifactCoordinate(releaseCoordinate.groupId, releaseCoordinate.artifactId),
+                            it
+                        )
+                    }
+                }
+                .mapToDomainModel()
+        }
+
+    }
 
     fun findReleasesInGroup(validGroupId: GroupId): Flow<Release> = releaseRepository.findAllByG(validGroupId.gId)
         .asFlow()
@@ -25,9 +54,10 @@ class ReleaseService(private val releaseRepository: ReleaseRepository) {
         .asFlow()
         .mapToDomainModel()
 
-    fun findReleasesOfArtifact(artifact: Artifact): Flow<Release> = releaseRepository.findAllByGAndA(artifact.groupId.gId, artifact.artifactId.aId)
-        .asFlow()
-        .mapToDomainModel()
+    fun findReleasesOfArtifact(artifact: Artifact): Flow<Release> =
+        releaseRepository.findAllByGAndA(artifact.groupId.gId, artifact.artifactId.aId)
+            .asFlow()
+            .mapToDomainModel()
 
     private fun Flow<ReleaseEntity>.mapToDomainModel(): Flow<Release> =
         map { it.toDomainModel() }

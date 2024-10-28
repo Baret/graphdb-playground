@@ -11,12 +11,11 @@ data class ArtifactEntity(
     val g: String,
     val a: String,
     @Relationship(type = "HAS_RELEASE", direction = OUTGOING)
-    val releases: Set<ReleaseEntity>
-) {
+    val releases: Set<ReleaseEntity>,
     @DynamicLabels
     val additionalLabels: Set<String> = if (g.startsWith("de.gleex")) {
         setOf("Internal")
     } else {
         emptySet()
     }
-}
+)
