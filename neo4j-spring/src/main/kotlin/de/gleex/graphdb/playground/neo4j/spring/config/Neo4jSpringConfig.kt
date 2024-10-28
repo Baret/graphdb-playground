@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.data.neo4j.core.ReactiveDatabaseSelectionProvider
 import org.springframework.data.neo4j.core.transaction.ReactiveNeo4jTransactionManager
 
-
 @Configuration
 class Neo4jSpringConfig {
     @Bean
