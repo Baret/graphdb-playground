@@ -21,3 +21,4 @@ buildNumber.properties
 
 # other files
 application-local.yaml
+/mavenInvokerBaseDir/
