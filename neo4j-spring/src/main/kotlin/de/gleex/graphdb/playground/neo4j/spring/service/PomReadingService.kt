@@ -23,6 +23,7 @@ class PomReadingService(private val config: MavenConfig) {
         DefaultInvoker().apply {
             mavenHome = config.home.toFile()
             workingDirectory = config.workingDir.toFile()
+            localRepositoryDirectory = config.workingDir.resolve("repo").toFile()
         }
     }
 
