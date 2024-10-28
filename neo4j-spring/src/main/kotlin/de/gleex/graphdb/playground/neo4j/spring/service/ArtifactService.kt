@@ -27,28 +27,32 @@ class ArtifactService(private val artifactRepository: ArtifactRepository) {
     }
 
     private suspend fun createInternal(artifactCoordinate: ArtifactCoordinate): Flow<ArtifactEntity> {
+        log.debug { "createInternal for $artifactCoordinate" }
         return artifactRepository.findById(artifactCoordinate.toString())
             .asFlow()
             .onEmpty {
+                val newArtifactEntity = ArtifactEntity(
+                    null,
+                    artifactCoordinate.groupId.gId,
+                    artifactCoordinate.artifactId.aId,
+                    emptySet()
+                )
+                log.debug { "No artifact found. Saving new entity $newArtifactEntity" }
                 emitAll(
-                    artifactRepository.save(
-                        ArtifactEntity(
-                            null,
-                            artifactCoordinate.groupId.gId,
-                            artifactCoordinate.artifactId.aId,
-                            emptySet()
-                        )
-                    )
+                    artifactRepository.save(newArtifactEntity)
                         .asFlow()
                 )
             }
     }
 
     suspend fun addRelease(artifactCoordinate: ArtifactCoordinate, release: ReleaseEntity) {
+        log.debug { "Adding release $release to artifact $artifactCoordinate" }
         createInternal(artifactCoordinate)
             .collect { artifactEntity ->
+                log.debug { "Found or created artifact $artifactEntity" }
                 if (artifactEntity.releases.none { releaseEntity -> releaseEntity.id == release.id }) {
                     val copyWithNewRelease = artifactEntity.copy(releases = artifactEntity.releases + release)
+                    log.debug { "release not found in release list. Saving copy $copyWithNewRelease" }
                     artifactRepository.save(copyWithNewRelease)
                 }
             }
