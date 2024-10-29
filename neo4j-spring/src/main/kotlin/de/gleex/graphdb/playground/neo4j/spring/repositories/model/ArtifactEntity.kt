@@ -10,6 +10,10 @@ data class ArtifactEntity(
     var id: String?,
     val g: String,
     val a: String,
+    @Relationship(type = "HAS_PARENT", direction = OUTGOING, cascadeUpdates = true)
+    val parent: ArtifactEntity?,
+    @Relationship(type = "HAS_MODULE", direction = OUTGOING, cascadeUpdates = true)
+    val modules: Set<ArtifactEntity>,
     @Relationship(type = "HAS_RELEASE", direction = OUTGOING, cascadeUpdates = true)
     val releases: Set<ReleaseEntity>,
     @DynamicLabels

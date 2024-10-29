@@ -61,30 +61,4 @@ class ReleaseService(
 
     private fun Flow<ReleaseEntity>.mapToDomainModel(): Flow<Release> =
         map { it.toDomainModel() }
-
-    private fun ReleaseEntity.toDomainModel(): Release =
-        Release(
-            groupId = GroupId(g),
-            artifactId = ArtifactId(a),
-            version = Version(version),
-            dependencies = dependencies.map { dbDependency ->
-                Dependency(
-                    dbDependency.isTransitive,
-                    dbDependency.dependsOn.toDomainModel()
-                )
-            }.toSet()
-        )
-
-    private fun Release.toDbEntity(): ReleaseEntity = ReleaseEntity(
-        id = null,
-        g = groupId.gId,
-        a = artifactId.aId,
-        version = version.versionString,
-        major = version.major,
-        minor = version.minor,
-        patch = version.patch,
-        dependencies = dependencies.map {
-            DependencyRelationship(id = null, isTransitive = it.isTransitive, dependsOn = it.release.toDbEntity())
-        }.toSet()
-    )
 }

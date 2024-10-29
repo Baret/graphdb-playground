@@ -6,5 +6,6 @@ data class Release(
     val version: Version,
     val dependencies: Set<Dependency>
 ) {
-    val relatedArtifact: Artifact by lazy { Artifact(groupId, artifactId) }
+    val coordinate = ReleaseCoordinate(groupId, artifactId, version)
+    val relatedArtifactCoordinate = ArtifactCoordinate(groupId, artifactId)
 }

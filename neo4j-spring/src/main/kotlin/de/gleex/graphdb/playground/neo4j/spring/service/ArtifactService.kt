@@ -23,32 +23,19 @@ class ArtifactService(private val artifactRepository: ArtifactRepository) {
             .map {
                 log.info { "Artifact ${it.g}:${it.a} has ${it.releases.size} releases" }
                 it.releases.forEach { r -> log.info { "\t${r.g}:${r.a}:${r.version}" } }
-                Artifact(GroupId(it.g), ArtifactId(it.a))
+                it.toDomainModel()
             }
     }
 
-    private suspend fun createInternal(artifactCoordinate: ArtifactCoordinate): Flow<ArtifactEntity> {
-        log.debug { "createInternal for $artifactCoordinate" }
-        return artifactRepository.findById(artifactCoordinate.toString())
+    suspend fun persist(artifact: Artifact): Flow<Artifact> {
+        return artifactRepository.save(artifact.toDbEntity())
             .asFlow()
-            .onEmpty {
-                val newArtifactEntity = ArtifactEntity(
-                    null,
-                    artifactCoordinate.groupId.gId,
-                    artifactCoordinate.artifactId.aId,
-                    emptySet()
-                )
-                log.debug { "No artifact found. Saving new entity $newArtifactEntity" }
-                emitAll(
-                    artifactRepository.save(newArtifactEntity)
-                        .asFlow()
-                )
-            }
+            .map { it.toDomainModel() }
     }
 
     suspend fun addRelease(artifactCoordinate: ArtifactCoordinate, release: ReleaseEntity) {
         log.debug { "Adding release $release to artifact $artifactCoordinate" }
-        createInternal(artifactCoordinate)
+        createOrGetInternal(artifactCoordinate)
             .collect { artifactEntity ->
                 log.debug { "Found or created artifact $artifactEntity" }
                 if (artifactEntity.releases.none { releaseEntity -> releaseEntity.id == release.id }) {
@@ -57,6 +44,27 @@ class ArtifactService(private val artifactRepository: ArtifactRepository) {
                     val awaitedArtifact = artifactRepository.save(copyWithNewRelease).awaitSingleOrNull()
                     log.debug { "Saved artifact with release: $awaitedArtifact" }
                 }
+            }
+    }
+
+    private suspend fun createOrGetInternal(artifactCoordinate: ArtifactCoordinate): Flow<ArtifactEntity> {
+        log.debug { "createInternal for $artifactCoordinate" }
+        return artifactRepository.findById(artifactCoordinate.toString())
+            .asFlow()
+            .onEmpty {
+                val newArtifactEntity = ArtifactEntity(
+                    null,
+                    artifactCoordinate.groupId.gId,
+                    artifactCoordinate.artifactId.aId,
+                    null,
+                    emptySet(),
+                    emptySet()
+                )
+                log.debug { "No artifact found. Saving new entity $newArtifactEntity" }
+                emitAll(
+                    artifactRepository.save(newArtifactEntity)
+                        .asFlow()
+                )
             }
     }
 }

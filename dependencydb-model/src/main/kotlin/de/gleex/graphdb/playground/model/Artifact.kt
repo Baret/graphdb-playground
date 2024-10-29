@@ -5,4 +5,6 @@ data class Artifact(
     val artifactId: ArtifactId,
     val parent: Artifact? = null,
     val modules: Set<Artifact> = emptySet()
-)
+) {
+    val coordinate = ArtifactCoordinate(groupId, artifactId)
+}
