@@ -6,14 +6,12 @@ import de.gleex.graphdb.playground.neo4j.spring.repositories.model.DependencyRel
 import de.gleex.graphdb.playground.neo4j.spring.repositories.model.ReleaseEntity
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEmpty
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.reactive.asFlow
 import org.springframework.stereotype.Service
 
-private val log = KotlinLogging.logger {  }
+private val log = KotlinLogging.logger { }
 
 @Service
 class ReleaseService(
@@ -23,28 +21,29 @@ class ReleaseService(
     suspend fun save(releaseCoordinate: ReleaseCoordinate): Flow<Release> {
         return coroutineScope {
             log.debug { "Finding release by ID $releaseCoordinate" }
-            releaseRepository.findById(releaseCoordinate.toString())
-                .asFlow()
-                .onEmpty {
-                    val releaseToSave = with(releaseCoordinate) {
-                        Release(groupId, artifactId, version, emptySet())
-                    }
-                    log.debug { "Release not found. Creating new release $releaseToSave" }
-                    emitAll(releaseRepository.save(releaseToSave.toDbEntity()).asFlow())
-                }
-                .map { savedRelease ->
-                    log.debug { "Found or saved release $savedRelease" }
-                    savedRelease.also {
-                        artifactService.addRelease(
-                            ArtifactCoordinate(releaseCoordinate.groupId, releaseCoordinate.artifactId),
-                            it
-                        )
-                    }
-                }
-                .mapToDomainModel()
+            val savedRelease = getOrCreate(releaseCoordinate)
+            log.debug { "Found or saved release $savedRelease" }
+            launch {
+                artifactService.addRelease(
+                    ArtifactCoordinate(releaseCoordinate.groupId, releaseCoordinate.artifactId),
+                    savedRelease
+                )
+            }
+            flowOf(
+                savedRelease.toDomainModel()
+            )
         }
-
     }
+
+    private fun getOrCreate(releaseCoordinate: ReleaseCoordinate): ReleaseEntity =
+        releaseRepository.findById(releaseCoordinate.toString())
+            .orElseGet {
+                val releaseToSave = with(releaseCoordinate) {
+                    Release(groupId, artifactId, version, emptySet())
+                }
+                log.debug { "Release not found. Creating new release $releaseToSave" }
+                releaseRepository.save(releaseToSave.toDbEntity())
+            }
 
     fun findReleasesInGroup(validGroupId: GroupId): Flow<Release> = releaseRepository.findAllByG(validGroupId.gId)
         .asFlow()

@@ -1,10 +1,9 @@
 package de.gleex.graphdb.playground.neo4j.spring.repositories
 
 import de.gleex.graphdb.playground.neo4j.spring.repositories.model.ReleaseEntity
-import org.springframework.data.neo4j.repository.ReactiveNeo4jRepository
-import reactor.core.publisher.Flux
+import org.springframework.data.neo4j.repository.Neo4jRepository
 
-interface ReleaseRepository: ReactiveNeo4jRepository<ReleaseEntity, String> {
-    fun findAllByG(g: String): Flux<ReleaseEntity>
-    fun findAllByGAndA(g: String, a: String): Flux<ReleaseEntity>
+interface ReleaseRepository: Neo4jRepository<ReleaseEntity, String> {
+    fun findAllByG(g: String): List<ReleaseEntity>
+    fun findAllByGAndA(g: String, a: String): List<ReleaseEntity>
 }

@@ -8,11 +8,11 @@ import org.springframework.data.neo4j.core.transaction.ReactiveNeo4jTransactionM
 
 @Configuration
 class Neo4jSpringConfig {
-    @Bean
-    fun reactiveTransactionManager(
-        driver: Driver,
-        databaseNameProvider: ReactiveDatabaseSelectionProvider
-    ): ReactiveNeo4jTransactionManager {
-        return ReactiveNeo4jTransactionManager(driver, databaseNameProvider)
-    }
+//    @Bean
+//    fun reactiveTransactionManager(
+//        driver: Driver,
+//        databaseNameProvider: ReactiveDatabaseSelectionProvider
+//    ): ReactiveNeo4jTransactionManager {
+//        return ReactiveNeo4jTransactionManager(driver, databaseNameProvider)
+//    }
 }
