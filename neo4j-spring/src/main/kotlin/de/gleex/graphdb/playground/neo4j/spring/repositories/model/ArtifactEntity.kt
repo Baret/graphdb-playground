@@ -10,7 +10,7 @@ data class ArtifactEntity(
     var id: String?,
     val g: String,
     val a: String,
-    @Relationship(type = "HAS_RELEASE", direction = OUTGOING)
+    @Relationship(type = "HAS_RELEASE", direction = OUTGOING, cascadeUpdates = true)
     val releases: Set<ReleaseEntity>,
     @DynamicLabels
     val additionalLabels: Set<String> = if (g.startsWith("de.gleex")) {

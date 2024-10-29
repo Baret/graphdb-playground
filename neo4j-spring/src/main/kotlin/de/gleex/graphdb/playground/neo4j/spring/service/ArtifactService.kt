@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEmpty
 import kotlinx.coroutines.reactive.asFlow
+import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.stereotype.Service
 
 private val log = KotlinLogging.logger { }
@@ -53,7 +54,8 @@ class ArtifactService(private val artifactRepository: ArtifactRepository) {
                 if (artifactEntity.releases.none { releaseEntity -> releaseEntity.id == release.id }) {
                     val copyWithNewRelease = artifactEntity.copy(releases = artifactEntity.releases + release)
                     log.debug { "release not found in release list. Saving copy $copyWithNewRelease" }
-                    artifactRepository.save(copyWithNewRelease)
+                    val awaitedArtifact = artifactRepository.save(copyWithNewRelease).awaitSingleOrNull()
+                    log.debug { "Saved artifact with release: $awaitedArtifact" }
                 }
             }
     }
