@@ -12,7 +12,7 @@ internal fun Artifact.toDbEntity(): ArtifactEntity =
         groupId.gId,
         artifactId.aId,
         parent?.toDbEntity(),
-        modules.map { it.toDbEntity() }.toSet(),
+//        modules.map { it.toDbEntity() }.toSet(),
         emptySet()
     )
 
