@@ -33,11 +33,20 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
         log.debug { "Starting to import release coordinate $releaseCoordinate" }
         val pomPath: Path = locatePomFile(releaseCoordinate)
             ?: return emptySet()
-        val directDependencies: Set<ReleaseCoordinate> = directDependenciesOfPomFile(pomPath)
-        return directDependencies
+        val directDependencies: Set<ReleaseCoordinate> = dependenciesOf(pomPath)
+        return directDependencies + releaseCoordinate
     }
 
     private fun locatePomFile(releaseCoordinate: ReleaseCoordinate): Path? {
+        val artifactPomFile: Path = repoBasePath
+            .resolve(releaseCoordinate.groupId.gId.replace('.', File.separatorChar))
+            .resolve(releaseCoordinate.artifactId.aId)
+            .resolve(releaseCoordinate.version.versionString)
+            .resolve("${releaseCoordinate.artifactId.aId}-${releaseCoordinate.version.versionString}.pom")
+        if(artifactPomFile.exists()) {
+            log.debug { "Found pom file for $releaseCoordinate, no need to invoke maven. Full path: ${artifactPomFile.absolutePathString()}" }
+            return artifactPomFile
+        }
         log.debug { "Invoking maven to get artifact $releaseCoordinate" }
         val errors: MutableList<String> = mutableListOf()
         val invocationResult = mavenInvoker.execute(DefaultInvocationRequest().apply {
@@ -47,20 +56,9 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
         })
         if(invocationResult.exitCode != 0 || errors.isNotEmpty()) {
             log.error { "Getting artifact $releaseCoordinate failed. Maven exited with code ${invocationResult.exitCode}" }
-            if(invocationResult.executionException != null) {
-                log.error { "Invocation exception: ${invocationResult.executionException.message}" }
-            }
-            if(errors.isNotEmpty()) {
-                log.error { "Maven logged ${errors.size} errors:" }
-                errors.forEach { log.error { "\t$it" } }
-            }
+            logErrors(invocationResult, errors)
             return null
         } else {
-            val artifactPomFile: Path = repoBasePath
-                .resolve(releaseCoordinate.groupId.gId.replace('.', File.separatorChar))
-                .resolve(releaseCoordinate.artifactId.aId)
-                .resolve(releaseCoordinate.version.versionString)
-                .resolve("${releaseCoordinate.artifactId.aId}-${releaseCoordinate.version.versionString}.pom")
             if(artifactPomFile.exists()) {
                 log.debug { "Downloaded pom file for release $releaseCoordinate to ${artifactPomFile.absolutePathString()}" }
                 return artifactPomFile
@@ -71,9 +69,42 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
         }
     }
 
-    private fun directDependenciesOfPomFile(pomPath: Path): Set<ReleaseCoordinate> {
-        log.error { "NOT YET IMPLEMENTED! Get the direct dependencies of $pomPath" }
-        return emptySet()
+    private fun dependenciesOf(pomPath: Path): Set<ReleaseCoordinate> {
+        log.debug { "Invoking maven to get dependencies for pom file $pomPath" }
+        val errors: MutableList<String> = mutableListOf()
+        val invocationResult = mavenInvoker.execute(DefaultInvocationRequest().apply {
+            goals = listOf("$PLUGIN:tree")
+            addArgs(DEFAULT_ARGS)
+            addArg("-DoutputEncoding=UTF-8")
+            addArg("-Dtokens=whitespace")
+            val fParam = "-f ${config.workingDir.relativize(pomPath)}"
+            log.debug { "Putting '$fParam'" }
+            addArg(fParam)
+            addArg("-e")
+            addArg("-X")
+            setErrorHandler { errors += it }
+            setOutputHandler { log.debug { "Got output: $it" } }
+        })
+        if(invocationResult.exitCode != 0 || errors.isNotEmpty()) {
+            log.error { "Getting dependencies for pom file $pomPath failed. Maven exited with code ${invocationResult.exitCode}" }
+            logErrors(invocationResult, errors)
+            return emptySet()
+        } else {
+            return emptySet()
+        }
+    }
+
+    private fun logErrors(
+        invocationResult: InvocationResult,
+        errors: MutableList<String>
+    ) {
+        if (invocationResult.executionException != null) {
+            log.error { "Invocation exception: ${invocationResult.executionException.message}" }
+        }
+        if (errors.isNotEmpty()) {
+            log.error { "Maven logged ${errors.size} errors:" }
+            errors.forEach { log.error { "\t$it" } }
+        }
     }
 
     companion object {
