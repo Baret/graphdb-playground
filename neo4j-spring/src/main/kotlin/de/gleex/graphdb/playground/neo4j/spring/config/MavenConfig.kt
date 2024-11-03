@@ -22,7 +22,7 @@ data class MavenConfig(
         require(home.isDirectory() and home.exists() and home.isReadable()) {
             "Can not read maven home $home"
         }
-        val createdWorkingDir = Files.createDirectories(workingDir)
+        val createdWorkingDir = Files.createDirectories(workingDir.resolve("repo"))
         require(createdWorkingDir.isDirectory() and createdWorkingDir.exists() and createdWorkingDir.isWritable()) {
             "Maven working directory not usable. Configured path: '$workingDir', resolved path: $createdWorkingDir"
         }
