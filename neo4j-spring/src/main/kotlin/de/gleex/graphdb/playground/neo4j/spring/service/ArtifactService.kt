@@ -50,7 +50,6 @@ class ArtifactService(private val artifactRepository: ArtifactRepository) {
                     artifactCoordinate.groupId.gId,
                     artifactCoordinate.artifactId.aId,
                     null,
-                    emptySet(),
                     emptySet()
                 )
                 log.debug { "No artifact found. Saving new entity $newArtifactEntity" }
