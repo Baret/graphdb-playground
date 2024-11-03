@@ -15,11 +15,5 @@ data class ArtifactEntity(
 //    @Relationship(type = "HAS_MODULE", direction = OUTGOING, cascadeUpdates = true)
 //    val modules: Set<ArtifactEntity>,
     @Relationship(type = "HAS_RELEASE", direction = OUTGOING, cascadeUpdates = true)
-    val releases: Set<ReleaseEntity>,
-    @DynamicLabels
-    val additionalLabels: Set<String> = if (g.startsWith("de.gleex")) {
-        setOf("Internal")
-    } else {
-        emptySet()
-    }
+    val releases: Set<ReleaseEntity>
 )
