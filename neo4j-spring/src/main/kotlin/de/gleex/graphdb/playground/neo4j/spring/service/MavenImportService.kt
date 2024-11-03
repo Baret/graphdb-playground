@@ -29,15 +29,15 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
         }
     }
 
-    suspend fun import(releaseCoordinate: ReleaseCoordinate) : Set<ReleaseCoordinate> {
+    suspend fun import(releaseCoordinate: ReleaseCoordinate) : List<Dependency> {
         log.debug { "Starting to import release coordinate $releaseCoordinate" }
         val pomPath: Path = locatePomFile(releaseCoordinate)
-            ?: return emptySet()
-        val directDependencies: Set<ReleaseCoordinate> = dependenciesOf(releaseCoordinate, pomPath)
-        return directDependencies + releaseCoordinate
+            ?: return emptyList()
+        val directDependencies: List<Dependency> = dependenciesOf(releaseCoordinate, pomPath)
+        return directDependencies
     }
 
-    private fun locatePomFile(releaseCoordinate: ReleaseCoordinate): Path? {
+    private suspend fun locatePomFile(releaseCoordinate: ReleaseCoordinate): Path? {
         val artifactPomFile: Path = repoBasePath
             .resolve(releaseCoordinate.groupId.gId.replace('.', File.separatorChar))
             .resolve(releaseCoordinate.artifactId.aId)
@@ -50,7 +50,7 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
         return downloadPom(releaseCoordinate, artifactPomFile)
     }
 
-    private fun downloadPom(
+    private suspend fun downloadPom(
         releaseCoordinate: ReleaseCoordinate,
         artifactPomFile: Path
     ): Path? {
@@ -78,7 +78,7 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
         }
     }
 
-    private fun dependenciesOf(releaseCoordinate: ReleaseCoordinate, pomPath: Path): Set<ReleaseCoordinate> {
+    private suspend fun dependenciesOf(releaseCoordinate: ReleaseCoordinate, pomPath: Path): List<Dependency> {
         log.debug { "Invoking maven to get dependencies for pom file $pomPath" }
         val errors: MutableList<String> = mutableListOf()
         val depTreeFileName = "${releaseCoordinate.toString().replace(":", "_")}_depTree.txt"
@@ -101,15 +101,38 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
         if(invocationResult.exitCode != 0 || errors.isNotEmpty()) {
             log.error { "Getting dependencies for pom file $pomPath failed. Maven exited with code ${invocationResult.exitCode}" }
             logErrors(invocationResult, errors)
-            return emptySet()
+            return emptyList()
         } else {
-            val depTreeFile = config.workingDir.resolve(depTreeFileName).toFile()
+            val depTreeFile = pomPath.resolveSibling(depTreeFileName)
             if(!depTreeFile.exists()) {
-                log.error { "Could not create dependency tree file at ${depTreeFile.absolutePath}" }
-                return emptySet()
+                log.error { "Could not create dependency tree file at ${depTreeFile.absolutePathString()}" }
+                return emptyList()
             }
-            val treeFileLines = depTreeFile.readLines(Charsets.UTF_8)
-            return emptySet()
+            val treeFileLines = depTreeFile.toFile().readLines(Charsets.UTF_8)
+            // TODO: Check that the first line is "de.gleex.kng:kotlin-name-generator-examples:jar:0.1.0"
+//            check(treeFileLines.first() == releaseCoordinate.toString()) {
+//                "Dependency tree file ${depTreeFile.absolutePathString()} does not belong to requested release coordinate $releaseCoordinate"
+//            }
+            val dependencies: MutableList<Dependency> = mutableListOf()
+            treeFileLines.drop(1)
+                .forEach { line ->
+                    var depth = -1
+                    var reducingLine = line
+                    while(reducingLine.startsWith("   ")) {
+                        depth++
+                        reducingLine = reducingLine.substring(3)
+                    }
+                    // each artifact is listed in the form of <gId>:<aId>:jar:<version>:compile
+                    val coordinateComponents = reducingLine.split(':')
+                    dependencies += Dependency(
+                        depth,
+                        ReleaseCoordinate(
+                            GroupId(coordinateComponents[0]),
+                            ArtifactId(coordinateComponents[1]), Version(coordinateComponents[3]))
+                        )
+                        .also { log.debug { "Adding dependency $it" } }
+                }
+            return dependencies
         }
     }
 

@@ -58,7 +58,7 @@ class ReleaseController(private val releaseService: ReleaseService, private val 
         @PathVariable(required = true) groupId: String,
         @PathVariable(required = true) artifactId: String,
         @PathVariable(required = true) version: String
-    ): Set<ReleaseCoordinate> {
+    ): List<Dependency> {
         return importService.import(ReleaseCoordinate(GroupId(groupId), ArtifactId(artifactId), Version(version)))
     }
 }
