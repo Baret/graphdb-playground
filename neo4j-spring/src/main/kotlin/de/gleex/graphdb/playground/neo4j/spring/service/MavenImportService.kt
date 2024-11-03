@@ -33,7 +33,7 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
         log.debug { "Starting to import release coordinate $releaseCoordinate" }
         val pomPath: Path = locatePomFile(releaseCoordinate)
             ?: return emptySet()
-        val directDependencies: Set<ReleaseCoordinate> = dependenciesOf(pomPath)
+        val directDependencies: Set<ReleaseCoordinate> = dependenciesOf(releaseCoordinate, pomPath)
         return directDependencies + releaseCoordinate
     }
 
@@ -47,19 +47,28 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
             log.debug { "Found pom file for $releaseCoordinate, no need to invoke maven. Full path: ${artifactPomFile.absolutePathString()}" }
             return artifactPomFile
         }
+        return downloadPom(releaseCoordinate, artifactPomFile)
+    }
+
+    private fun downloadPom(
+        releaseCoordinate: ReleaseCoordinate,
+        artifactPomFile: Path
+    ): Path? {
         log.debug { "Invoking maven to get artifact $releaseCoordinate" }
         val errors: MutableList<String> = mutableListOf()
         val invocationResult = mavenInvoker.execute(DefaultInvocationRequest().apply {
             goals = listOf("$PLUGIN:get")
-            addArgs(DEFAULT_ARGS + "-Dartifact=$releaseCoordinate")
+            addArgs(DEFAULT_ARGS)
+            addArg("-Dartifact=$releaseCoordinate")
+            addArg("-Dtransitive=false")
             setErrorHandler { errors += it }
         })
-        if(invocationResult.exitCode != 0 || errors.isNotEmpty()) {
+        if (invocationResult.exitCode != 0 || errors.isNotEmpty()) {
             log.error { "Getting artifact $releaseCoordinate failed. Maven exited with code ${invocationResult.exitCode}" }
             logErrors(invocationResult, errors)
             return null
         } else {
-            if(artifactPomFile.exists()) {
+            if (artifactPomFile.exists()) {
                 log.debug { "Downloaded pom file for release $releaseCoordinate to ${artifactPomFile.absolutePathString()}" }
                 return artifactPomFile
             } else {
@@ -69,27 +78,37 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
         }
     }
 
-    private fun dependenciesOf(pomPath: Path): Set<ReleaseCoordinate> {
+    private fun dependenciesOf(releaseCoordinate: ReleaseCoordinate, pomPath: Path): Set<ReleaseCoordinate> {
         log.debug { "Invoking maven to get dependencies for pom file $pomPath" }
         val errors: MutableList<String> = mutableListOf()
+        val depTreeFileName = "${releaseCoordinate.toString().replace(":", "_")}_depTree.txt"
         val invocationResult = mavenInvoker.execute(DefaultInvocationRequest().apply {
             goals = listOf("$PLUGIN:tree")
+            pomFile = pomPath.toFile()
             addArgs(DEFAULT_ARGS)
             addArg("-DoutputEncoding=UTF-8")
             addArg("-Dtokens=whitespace")
-            val fParam = "-f ${config.workingDir.relativize(pomPath)}"
-            log.debug { "Putting '$fParam'" }
-            addArg(fParam)
-            addArg("-e")
-            addArg("-X")
+            addArg("-DoutputFile=$depTreeFileName")
             setErrorHandler { errors += it }
-            setOutputHandler { log.debug { "Got output: $it" } }
+            setOutputHandler { log.debug { it } }
+        }.also {
+            log.debug {
+                "InvocationRequest: mvn -f ${it.pomFile} ${it.goals.joinToString(" ")} ${
+                    it.args.joinToString(" ")
+                }"
+            }
         })
         if(invocationResult.exitCode != 0 || errors.isNotEmpty()) {
             log.error { "Getting dependencies for pom file $pomPath failed. Maven exited with code ${invocationResult.exitCode}" }
             logErrors(invocationResult, errors)
             return emptySet()
         } else {
+            val depTreeFile = config.workingDir.resolve(depTreeFileName).toFile()
+            if(!depTreeFile.exists()) {
+                log.error { "Could not create dependency tree file at ${depTreeFile.absolutePath}" }
+                return emptySet()
+            }
+            val treeFileLines = depTreeFile.readLines(Charsets.UTF_8)
             return emptySet()
         }
     }
@@ -110,6 +129,7 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
     companion object {
         private val PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1"
         private val DEFAULT_ARGS = listOf(
+                "--show-version",
                 "-B",
                 "-Dmaven.repo.local=./repo/"
             )
