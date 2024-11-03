@@ -42,7 +42,7 @@ class ReleaseService(
                     Release(groupId, artifactId, version, emptySet())
                 }
                 log.debug { "Release not found. Creating new release $releaseToSave" }
-                releaseRepository.save(releaseToSave.toDbEntity())
+                releaseRepository.save(releaseToSave.toDbEntity { getOrCreate(it) })
             }
 
     fun findReleasesInGroup(validGroupId: GroupId): Flow<Release> = releaseRepository.findAllByG(validGroupId.gId)

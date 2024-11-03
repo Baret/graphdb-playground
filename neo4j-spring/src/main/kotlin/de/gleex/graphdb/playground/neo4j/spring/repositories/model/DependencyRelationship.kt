@@ -9,9 +9,9 @@ import org.springframework.data.neo4j.core.schema.TargetNode
 data class DependencyRelationship(
     @Id
     @GeneratedValue
-    // this MUST be a Long, also the log spams warnings: https://github.com/spring-projects/spring-data-neo4j/issues/2620
+    // this MUST be a Long, even though the log spams warnings: https://github.com/spring-projects/spring-data-neo4j/issues/2620
     var id: Long?,
-    val isTransitive: Boolean,
+    val treeDepth: Int,
     @TargetNode
     val dependsOn: ReleaseEntity
 )

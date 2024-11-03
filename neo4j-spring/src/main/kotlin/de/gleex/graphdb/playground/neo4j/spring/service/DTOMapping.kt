@@ -28,13 +28,15 @@ internal fun ReleaseEntity.toDomainModel(): Release =
         version = Version(version),
         dependencies = dependencies.map { dbDependency ->
             Dependency(
-                dbDependency.isTransitive,
-                dbDependency.dependsOn.toDomainModel()
+                0,
+                dbDependency.dependsOn.let {
+                    ReleaseCoordinate(GroupId(it.g), ArtifactId(it.a), Version(it.version))
+                }
             )
         }.toSet()
     )
 
-internal fun Release.toDbEntity(): ReleaseEntity = ReleaseEntity(
+internal fun Release.toDbEntity(resolveDependency: (ReleaseCoordinate) -> ReleaseEntity): ReleaseEntity = ReleaseEntity(
     id = null,
     g = groupId.gId,
     a = artifactId.aId,
@@ -43,6 +45,6 @@ internal fun Release.toDbEntity(): ReleaseEntity = ReleaseEntity(
     minor = version.minor,
     patch = version.patch,
     dependencies = dependencies.map {
-        DependencyRelationship(id = null, isTransitive = it.isTransitive, dependsOn = it.release.toDbEntity())
+        DependencyRelationship(id = null, treeDepth = it.treeDepth, dependsOn = resolveDependency(it.release))
     }.toSet()
 )
