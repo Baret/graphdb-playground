@@ -1,6 +1,7 @@
 package de.gleex.graphdb.playground.neo4j.spring.controller
 
 import de.gleex.graphdb.playground.model.*
+import de.gleex.graphdb.playground.neo4j.spring.service.MavenImportService
 import de.gleex.graphdb.playground.neo4j.spring.service.ReleaseService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
@@ -10,7 +11,7 @@ private val log = KotlinLogging.logger {  }
 
 @RestController
 @RequestMapping("/release")
-class ReleaseController(private val releaseService: ReleaseService) {
+class ReleaseController(private val releaseService: ReleaseService, private val importService: MavenImportService) {
 
     @GetMapping("/get")
     suspend fun allReleases(): Flow<Release> {
@@ -50,5 +51,14 @@ class ReleaseController(private val releaseService: ReleaseService) {
         )
         log.info { "Saving release: $releaseCoordinate" }
         return releaseService.save(releaseCoordinate)
+    }
+
+    @PostMapping("/import/{groupId}/{artifactId}/{version}")
+    suspend fun import(
+        @PathVariable(required = true) groupId: String,
+        @PathVariable(required = true) artifactId: String,
+        @PathVariable(required = true) version: String
+    ): Set<ReleaseCoordinate> {
+        return importService.import(ReleaseCoordinate(GroupId(groupId), ArtifactId(artifactId), Version(version)))
     }
 }

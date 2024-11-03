@@ -6,6 +6,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.maven.shared.invoker.*
+import org.springframework.data.neo4j.core.Neo4jClient
 import org.springframework.stereotype.Service
 import java.io.File
 import java.net.URI
@@ -18,27 +19,69 @@ import kotlin.io.path.nameWithoutExtension
 private val log = KotlinLogging.logger { }
 
 @Service
-class PomReadingService(private val config: MavenConfig) {
+class MavenImportService(private val config: MavenConfig, private val client: Neo4jClient) {
+    val repoBasePath: Path = config.workingDir.resolve("repo")
     private val mavenInvoker: Invoker by lazy {
         DefaultInvoker().apply {
             mavenHome = config.home.toFile()
             workingDirectory = config.workingDir.toFile()
-            localRepositoryDirectory = config.workingDir.resolve("repo").toFile()
+            localRepositoryDirectory = repoBasePath.toFile()
         }
     }
 
-    fun directDependenciesOf(releaseCoordinate: ReleaseCoordinate) : Set<ReleaseCoordinate> {
+    suspend fun import(releaseCoordinate: ReleaseCoordinate) : Set<ReleaseCoordinate> {
+        log.debug { "Starting to import release coordinate $releaseCoordinate" }
         val pomPath: Path = locatePomFile(releaseCoordinate)
+            ?: return emptySet()
         val directDependencies: Set<ReleaseCoordinate> = directDependenciesOfPomFile(pomPath)
         return directDependencies
     }
 
-    private fun locatePomFile(releaseCoordinate: ReleaseCoordinate): Path {
-        TODO("Not yet implemented")
+    private fun locatePomFile(releaseCoordinate: ReleaseCoordinate): Path? {
+        log.debug { "Invoking maven to get artifact $releaseCoordinate" }
+        val errors: MutableList<String> = mutableListOf()
+        val invocationResult = mavenInvoker.execute(DefaultInvocationRequest().apply {
+            goals = listOf("$PLUGIN:get")
+            addArgs(DEFAULT_ARGS + "-Dartifact=$releaseCoordinate")
+            setErrorHandler { errors += it }
+        })
+        if(invocationResult.exitCode != 0 || errors.isNotEmpty()) {
+            log.error { "Getting artifact $releaseCoordinate failed. Maven exited with code ${invocationResult.exitCode}" }
+            if(invocationResult.executionException != null) {
+                log.error { "Invocation exception: ${invocationResult.executionException.message}" }
+            }
+            if(errors.isNotEmpty()) {
+                log.error { "Maven logged ${errors.size} errors:" }
+                errors.forEach { log.error { "\t$it" } }
+            }
+            return null
+        } else {
+            val artifactPomFile: Path = repoBasePath
+                .resolve(releaseCoordinate.groupId.gId.replace('.', File.separatorChar))
+                .resolve(releaseCoordinate.artifactId.aId)
+                .resolve(releaseCoordinate.version.versionString)
+                .resolve("${releaseCoordinate.artifactId.aId}-${releaseCoordinate.version.versionString}.pom")
+            if(artifactPomFile.exists()) {
+                log.debug { "Downloaded pom file for release $releaseCoordinate to ${artifactPomFile.absolutePathString()}" }
+                return artifactPomFile
+            } else {
+                log.error { "Could not find downloaded pom file at ${artifactPomFile.absolutePathString()}" }
+                return null
+            }
+        }
     }
 
     private fun directDependenciesOfPomFile(pomPath: Path): Set<ReleaseCoordinate> {
-        TODO("Not yet implemented")
+        log.error { "NOT YET IMPLEMENTED! Get the direct dependencies of $pomPath" }
+        return emptySet()
+    }
+
+    companion object {
+        private val PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1"
+        private val DEFAULT_ARGS = listOf(
+                "-B",
+                "-Dmaven.repo.local=./repo/"
+            )
     }
 }
 
