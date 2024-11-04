@@ -28,6 +28,10 @@ internal fun ReleaseEntity.toDomainModel(): Release =
         version = Version(version),
         dependencies = dependencies.map { dbDependency ->
             Dependency(
+                // TODO: Fix mapping
+                dbDependency.dependsOn.let {
+                    ReleaseCoordinate(GroupId(it.g), ArtifactId(it.a), Version(it.version))
+                },
                 0,
                 dbDependency.dependsOn.let {
                     ReleaseCoordinate(GroupId(it.g), ArtifactId(it.a), Version(it.version))

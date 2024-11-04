@@ -29,7 +29,7 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
         }
     }
 
-    suspend fun import(releaseCoordinate: ReleaseCoordinate) : List<Dependency> {
+    suspend fun import(releaseCoordinate: ReleaseCoordinate): List<Dependency> {
         log.debug { "Starting to import release coordinate $releaseCoordinate" }
         val pomPath: Path = locatePomFile(releaseCoordinate)
             ?: return emptyList()
@@ -43,7 +43,7 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
             .resolve(releaseCoordinate.artifactId.aId)
             .resolve(releaseCoordinate.version.versionString)
             .resolve("${releaseCoordinate.artifactId.aId}-${releaseCoordinate.version.versionString}.pom")
-        if(artifactPomFile.exists()) {
+        if (artifactPomFile.exists()) {
             log.debug { "Found pom file for $releaseCoordinate, no need to invoke maven. Full path: ${artifactPomFile.absolutePathString()}" }
             return artifactPomFile
         }
@@ -98,13 +98,13 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
                 }"
             }
         })
-        if(invocationResult.exitCode != 0 || errors.isNotEmpty()) {
+        if (invocationResult.exitCode != 0 || errors.isNotEmpty()) {
             log.error { "Getting dependencies for pom file $pomPath failed. Maven exited with code ${invocationResult.exitCode}" }
             logErrors(invocationResult, errors)
             return emptyList()
         } else {
             val depTreeFile = pomPath.resolveSibling(depTreeFileName)
-            if(!depTreeFile.exists()) {
+            if (!depTreeFile.exists()) {
                 log.error { "Could not create dependency tree file at ${depTreeFile.absolutePathString()}" }
                 return emptyList()
             }
@@ -114,22 +114,34 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
 //                "Dependency tree file ${depTreeFile.absolutePathString()} does not belong to requested release coordinate $releaseCoordinate"
 //            }
             val dependencies: MutableList<Dependency> = mutableListOf()
+            val lastParentOnDepth: MutableMap<Int, ReleaseCoordinate> = mutableMapOf(0 to releaseCoordinate)
+            log.debug { "Starting tree traversal with parent map: $lastParentOnDepth" }
             treeFileLines.drop(1)
                 .forEach { line ->
                     var depth = -1
                     var reducingLine = line
-                    while(reducingLine.startsWith("   ")) {
+                    while (reducingLine.startsWith("   ")) {
                         depth++
                         reducingLine = reducingLine.substring(3)
                     }
                     // each artifact is listed in the form of <gId>:<aId>:jar:<version>:compile
                     val coordinateComponents = reducingLine.split(':')
+                    val dependencyCoordinate = ReleaseCoordinate(
+                        GroupId(coordinateComponents[0]),
+                        ArtifactId(coordinateComponents[1]), Version(coordinateComponents[3])
+                    )
+                    val treeParent = lastParentOnDepth[depth]
+                    checkNotNull(treeParent) {
+                        "No parent dependency found in tree at depth ${depth - 1} for $dependencyCoordinate"
+                    }
+                    lastParentOnDepth[depth + 1] = dependencyCoordinate
+                    log.debug { "Put parent on depth $depth to ${lastParentOnDepth[depth]}" }
+                    log.debug { "Found parent $treeParent for depth $depth - $dependencyCoordinate" }
                     dependencies += Dependency(
+                        dependencyCoordinate,
                         depth,
-                        ReleaseCoordinate(
-                            GroupId(coordinateComponents[0]),
-                            ArtifactId(coordinateComponents[1]), Version(coordinateComponents[3]))
-                        )
+                        treeParent
+                    )
                         .also { log.debug { "Adding dependency $it" } }
                 }
             return dependencies
@@ -152,10 +164,10 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
     companion object {
         private val PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1"
         private val DEFAULT_ARGS = listOf(
-                "--show-version",
-                "-B",
-                "-Dmaven.repo.local=./repo/"
-            )
+            "--show-version",
+            "-B",
+            "-Dmaven.repo.local=./repo/"
+        )
     }
 }
 
