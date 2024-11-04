@@ -3,15 +3,21 @@ package de.gleex.graphdb.playground.neo4j.spring.service
 import de.gleex.graphdb.playground.model.*
 import de.gleex.graphdb.playground.neo4j.spring.config.MavenConfig
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.channels.SendChannel
+import kotlinx.coroutines.sync.Mutex
 import org.apache.maven.shared.invoker.*
+import org.neo4j.driver.summary.ResultSummary
 import org.springframework.data.neo4j.core.Neo4jClient
 import org.springframework.stereotype.Service
 import java.io.File
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.*
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.absolutePathString
 import kotlin.io.path.exists
 import kotlin.io.path.nameWithoutExtension
@@ -21,6 +27,7 @@ private val log = KotlinLogging.logger { }
 @Service
 class MavenImportService(private val config: MavenConfig, private val client: Neo4jClient) {
     val repoBasePath: Path = config.workingDir.resolve("repo")
+
     private val mavenInvoker: Invoker by lazy {
         DefaultInvoker().apply {
             mavenHome = config.home.toFile()
@@ -31,11 +38,132 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
 
     suspend fun import(releaseCoordinate: ReleaseCoordinate): List<Dependency> {
         log.debug { "Starting to import release coordinate $releaseCoordinate" }
-        val pomPath: Path = locatePomFile(releaseCoordinate)
-            ?: return emptyList()
-        val directDependencies: List<Dependency> = dependenciesOf(releaseCoordinate, pomPath)
-        return directDependencies
+        val resolvedDependencies: List<Dependency> = withContext(Dispatchers.IO) {
+            val pomPath: Path = locatePomFile(releaseCoordinate) ?: return@withContext emptyList()
+            resolveDependencies(releaseCoordinate, pomPath)
+        }
+        val savedDependencies: List<Dependency> = saveToDatabase(releaseCoordinate, resolvedDependencies)
+        return savedDependencies
     }
+
+    private suspend fun saveToDatabase(releaseCoordinate: ReleaseCoordinate, dependencies: List<Dependency>): List<Dependency> {
+        return coroutineScope {
+            val jobs: MutableList<Job> = mutableListOf()
+            val artifactsToSave: Channel<ReleaseCoordinate> = Channel()
+            launch(Dispatchers.IO) { saveArtifacts(artifactsToSave) }
+            val rootRelease: ReleaseCoordinate = saveReleaseAndArtifact(releaseCoordinate, artifactsToSave)
+            val savedDependencies: MutableList<Dependency> = Collections.synchronizedList(mutableListOf())
+            dependencies.forEach { dep ->
+                jobs += launch(Dispatchers.IO) { saveReleaseAndArtifact(dep.release, artifactsToSave) }
+                val saveDependencyJob = async(Dispatchers.IO) { saveDependency(rootRelease, dep) }
+                jobs += launch {
+                    savedDependencies += saveDependencyJob.await()
+                }
+            }
+            log.debug { "Started ${jobs.size} jobs to import ${dependencies.size} dependencies. Awaiting that they finish..." }
+            jobs.joinAll()
+            log.debug { "All ${jobs.size} jobs done. Closing channel." }
+            artifactsToSave.close()
+            return@coroutineScope savedDependencies.toList()
+        }
+    }
+
+    private suspend fun saveDependency(rootRelease: ReleaseCoordinate, dependency: Dependency): Dependency {
+        coroutineScope {
+            log.debug { "Saving dependency $rootRelease -> $dependency" }
+                launch(Dispatchers.IO) {
+                        val resultSummary: ResultSummary = client.query {
+                            """
+                            MERGE ${rootRelease.getMinimalCypherNode("root")}
+                                ON CREATE SET ${rootRelease.additionalProperties("root")}
+                            MERGE ${dependency.release.getMinimalCypherNode("dependency")}
+                                ON CREATE SET ${dependency.release.additionalProperties("dependency")}
+                            MERGE (root) -[dep:DEPENDS_ON{ treeDepth:${dependency.treeDepth}, treeParent:'${dependency.treeParent}' }]-> (dependency)
+                            RETURN root, dep, dependency
+                        """.trimIndent()
+                        }
+                            .run()
+                        log.debug {
+                            "Saved dependency $rootRelease -> $dependency in ${
+                                resultSummary.resultAvailableAfter(
+                                    TimeUnit.MILLISECONDS
+                                )
+                            } ms. Summary: $resultSummary"
+                        }
+                        log.debug { "${resultSummary.notifications().size} notifications after saving dependency $dependency:" }
+                        resultSummary.notifications().forEach { log.debug { "\t$it" } }
+                }
+            }
+        return dependency
+    }
+
+    private suspend fun saveReleaseAndArtifact(
+        releaseCoordinate: ReleaseCoordinate,
+        artifactsToSave: SendChannel<ReleaseCoordinate>
+    ): ReleaseCoordinate {
+        coroutineScope {
+            log.debug { "Saving release $releaseCoordinate and its artifact" }
+            launch { artifactsToSave.send(releaseCoordinate) }
+                val resultSummary: ResultSummary = client.query {
+                    """
+                        MERGE ${releaseCoordinate.getMinimalCypherNode()}
+                            ON CREATE SET ${releaseCoordinate.additionalProperties()}
+                        RETURN r
+                    """.trimIndent()
+                }
+                    .run()
+                log.debug { "Saved release $releaseCoordinate in ${resultSummary.resultAvailableAfter(TimeUnit.MILLISECONDS)} ms. Summary: $resultSummary" }
+                log.debug { "${resultSummary.notifications().size} notifications after saving release $releaseCoordinate:" }
+                resultSummary.notifications().forEach { log.debug { "\t$it" } }
+        }
+        return releaseCoordinate
+    }
+
+    private suspend fun saveArtifacts(
+        artifactsToSaveForReleases: ReceiveChannel<ReleaseCoordinate>
+    ) {
+        coroutineScope {
+            log.debug { "Starting to wait for artifacts to save" }
+            for (releaseCoordinate in artifactsToSaveForReleases) {
+                launch(Dispatchers.IO) {
+                    val artifact = ArtifactCoordinate(releaseCoordinate.groupId, releaseCoordinate.artifactId)
+                    log.debug { "Saving artifact $artifact with release $releaseCoordinate" }
+                        val resultSummary: ResultSummary = client.query {
+                            """
+                            MERGE ${artifact.cypherNode}
+                            MERGE ${releaseCoordinate.getMinimalCypherNode()}
+                                ON CREATE SET ${releaseCoordinate.additionalProperties()}
+                            MERGE (a) -[dep:HAS_RELEASE]-> (r)
+                            RETURN a, dep, r
+                        """.trimIndent()
+                        }
+                            .run()
+                        log.debug { "Saved artifact $releaseCoordinate in ${resultSummary.resultAvailableAfter(TimeUnit.MILLISECONDS)} ms. Summary: $resultSummary" }
+                        log.debug { "${resultSummary.notifications().size} notifications after saving release $releaseCoordinate:" }
+                        resultSummary.notifications().forEach { log.debug { "\t$it" } }
+                }
+            }
+            log.debug { "Saving artifacts done" }
+        }
+    }
+
+    private val ArtifactCoordinate.cypherNode
+        get() = "(a:Artifact { id:'${this.toString()}', g:'${groupId.gId}', a:'${artifactId.aId}' })"
+
+    private fun ReleaseCoordinate.getMinimalCypherNode(nodeName: String = "r") = "($nodeName:Release { " +
+            "g:'${groupId.gId}', " +
+            "a:'${artifactId.aId}', " +
+            "version:'${version.versionString}'" +
+            "})"
+
+    private fun ReleaseCoordinate.additionalProperties(nodeName: String = "r") =
+        "$nodeName.id = '${this.toString()}', " +
+        "$nodeName.major = ${version.major}, " +
+        "$nodeName.minor = ${version.minor}, " +
+        "$nodeName.patch = ${version.patch}, " +
+        "$nodeName.suffix = '${version.suffix}', " +
+//        (version.suffix?.let { ", suffix = '$it'" } ?: ", ") +
+        "$nodeName.isSnapshot = ${version.isSnapshot}"
 
     private suspend fun locatePomFile(releaseCoordinate: ReleaseCoordinate): Path? {
         val artifactPomFile: Path = repoBasePath
@@ -78,7 +206,7 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
         }
     }
 
-    private suspend fun dependenciesOf(releaseCoordinate: ReleaseCoordinate, pomPath: Path): List<Dependency> {
+    private suspend fun resolveDependencies(releaseCoordinate: ReleaseCoordinate, pomPath: Path): List<Dependency> {
         log.debug { "Invoking maven to get dependencies for pom file $pomPath" }
         val errors: MutableList<String> = mutableListOf()
         val depTreeFileName = "${releaseCoordinate.toString().replace(":", "_")}_depTree.txt"
