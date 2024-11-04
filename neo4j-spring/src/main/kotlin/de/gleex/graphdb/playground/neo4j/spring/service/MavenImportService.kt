@@ -35,8 +35,38 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
         }
     }
 
-    suspend fun import(releaseCoordinate: ReleaseCoordinate): List<Dependency> {
+    suspend fun import(releaseCoordinate: ReleaseCoordinate): Artifact {
         log.debug { "Starting to import release coordinate $releaseCoordinate" }
+        return coroutineScope {
+            val savedDependencies: Deferred<List<Dependency>> = async { importDependencies(releaseCoordinate) }
+            val parent: Deferred<ArtifactCoordinate> = async { findParentArtifact(releaseCoordinate) }
+            val modules: Deferred<Set<ArtifactCoordinate>> = async { findModulesForArtifact(releaseCoordinate) }
+            val release = Release(
+                groupId = releaseCoordinate.groupId,
+                artifactId = releaseCoordinate.artifactId,
+                version = releaseCoordinate.version,
+                dependencies = savedDependencies.await().toSet()
+            )
+            val artifact = Artifact(
+                groupId = releaseCoordinate.groupId,
+                artifactId = releaseCoordinate.artifactId,
+                parent = parent.await(),
+                modules = modules.await(),
+                releases = setOf(release)
+            )
+            artifact
+        }
+    }
+
+    private fun findModulesForArtifact(releaseCoordinate: ReleaseCoordinate): Set<ArtifactCoordinate> {
+        TODO("Not yet implemented")
+    }
+
+    private fun findParentArtifact(releaseCoordinate: ReleaseCoordinate): ArtifactCoordinate {
+        TODO("Not yet implemented")
+    }
+
+    private suspend fun MavenImportService.importDependencies(releaseCoordinate: ReleaseCoordinate): List<Dependency> {
         val resolvedDependencies: List<Dependency> = withContext(Dispatchers.IO) {
             val pomPath: Path = locatePomFile(releaseCoordinate) ?: return@withContext emptyList()
             resolveDependencies(releaseCoordinate, pomPath)

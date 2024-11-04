@@ -44,11 +44,11 @@ class ArtifactController(private val artifactService: ArtifactService, private v
 
         var parent = Artifact(groupId, aIdParent)
 
-        val examples = releases(Artifact(groupId, aIdExamples, parent = parent), *releases)
-        val kng = releases(Artifact(groupId, aIdKng, parent = parent), *releases)
-        val api = releases(Artifact(groupId, aIdApi, parent = parent), *releases)
+        val examples = releases(Artifact(groupId, aIdExamples, parent = parent.coordinate), *releases)
+        val kng = releases(Artifact(groupId, aIdKng, parent = parent.coordinate), *releases)
+        val api = releases(Artifact(groupId, aIdApi, parent = parent.coordinate), *releases)
 
-        parent = releases(parent.copy(modules = setOf(api, kng, examples)), *releases)
+        parent = releases(parent.copy(modules = setOf(api.coordinate, kng.coordinate, examples.coordinate)), *releases)
         log.debug { "Saving demo data artifact $parent" }
         return artifactService.persist(parent)
     }

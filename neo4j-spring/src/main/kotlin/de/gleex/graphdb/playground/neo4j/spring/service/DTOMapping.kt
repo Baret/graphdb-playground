@@ -8,10 +8,11 @@ import de.gleex.graphdb.playground.neo4j.spring.repositories.model.ReleaseEntity
 
 internal fun Artifact.toDbEntity(): ArtifactEntity =
     ArtifactEntity(
+        // TODO: Fix mapping
         null,
         groupId.gId,
         artifactId.aId,
-        parent?.toDbEntity(),
+        null,
 //        modules.map { it.toDbEntity() }.toSet(),
         emptySet()
     )
