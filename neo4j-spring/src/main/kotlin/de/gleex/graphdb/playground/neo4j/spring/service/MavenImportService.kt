@@ -7,7 +7,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
-import kotlinx.coroutines.sync.Mutex
 import org.apache.maven.shared.invoker.*
 import org.neo4j.driver.summary.ResultSummary
 import org.springframework.data.neo4j.core.Neo4jClient
@@ -72,16 +71,14 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
         coroutineScope {
             log.debug { "Saving dependency $rootRelease -> $dependency" }
                 launch(Dispatchers.IO) {
-                        val resultSummary: ResultSummary = client.query {
-                            """
-                            MERGE ${rootRelease.getMinimalCypherNode("root")}
-                                ON CREATE SET ${rootRelease.additionalProperties("root")}
-                            MERGE ${dependency.release.getMinimalCypherNode("dependency")}
-                                ON CREATE SET ${dependency.release.additionalProperties("dependency")}
+                    val resultSummary: ResultSummary = client.query {
+                        """
+                            ${rootRelease.mergeClause("root")}
+                            ${dependency.release.mergeClause("dependency")}
                             MERGE (root) -[dep:DEPENDS_ON{ treeDepth:${dependency.treeDepth}, treeParent:'${dependency.treeParent}' }]-> (dependency)
                             RETURN root, dep, dependency
                         """.trimIndent()
-                        }
+                    }
                             .run()
                         log.debug {
                             "Saved dependency $rootRelease -> $dependency in ${
@@ -106,8 +103,7 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
             launch { artifactsToSave.send(releaseCoordinate) }
                 val resultSummary: ResultSummary = client.query {
                     """
-                        MERGE ${releaseCoordinate.getMinimalCypherNode()}
-                            ON CREATE SET ${releaseCoordinate.additionalProperties()}
+                        ${releaseCoordinate.mergeClause()}
                         RETURN r
                     """.trimIndent()
                 }
@@ -131,8 +127,7 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
                         val resultSummary: ResultSummary = client.query {
                             """
                             MERGE ${artifact.cypherNode}
-                            MERGE ${releaseCoordinate.getMinimalCypherNode()}
-                                ON CREATE SET ${releaseCoordinate.additionalProperties()}
+                            ${releaseCoordinate.mergeClause()}
                             MERGE (a) -[dep:HAS_RELEASE]-> (r)
                             RETURN a, dep, r
                         """.trimIndent()
@@ -149,6 +144,12 @@ class MavenImportService(private val config: MavenConfig, private val client: Ne
 
     private val ArtifactCoordinate.cypherNode
         get() = "(a:Artifact { id:'${this.toString()}', g:'${groupId.gId}', a:'${artifactId.aId}' })"
+
+    private fun ReleaseCoordinate.mergeClause(nodeName: String = "r") =
+        """
+            MERGE ${getMinimalCypherNode(nodeName)}
+                ON CREATE SET ${additionalProperties(nodeName)}
+        """
 
     private fun ReleaseCoordinate.getMinimalCypherNode(nodeName: String = "r") = "($nodeName:Release { " +
             "g:'${groupId.gId}', " +
