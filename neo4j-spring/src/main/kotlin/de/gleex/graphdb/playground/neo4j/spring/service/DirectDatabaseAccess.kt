@@ -46,7 +46,7 @@ class DirectDatabaseAccess(private val client: Neo4jClient) {
                 log.debug { "Saving artifact $artifact with release $releaseCoordinate" }
                 val resultSummary: ResultSummary = client.query {
                     """
-                        MERGE ${artifact.cypherNode}
+                        MERGE ${artifact.getCypherNode()}
                         ${releaseCoordinate.mergeClause()}
                         MERGE (a) -[dep:HAS_RELEASE]-> (r)
                         RETURN a, dep, r
@@ -60,19 +60,21 @@ class DirectDatabaseAccess(private val client: Neo4jClient) {
         }
     }
 
-    suspend fun saveArtifact(artifactToSave: ArtifactCoordinate) {
+    suspend fun saveArtifactWithParent(child: ArtifactCoordinate, parent: ArtifactCoordinate) {
         coroutineScope {
             launch(Dispatchers.IO) {
-                log.debug { "Saving single artifact $artifactToSave" }
+                log.debug { "Saving single artifact $parent" }
                 val resultSummary: ResultSummary = client.query {
                     """
-                        MERGE ${artifactToSave.cypherNode}
-                        RETURN a
+                        MERGE ${parent.getCypherNode("p")}
+                        MERGE ${child.getCypherNode("c")}
+                        MERGE (p) -[m: HAS_MODULE]-> (c)
+                        RETURN p, m, c
                     """.trimIndent()
                 }
                     .run()
-                log.debug { "Saved single artifact $artifactToSave in ${resultSummary.resultAvailableAfter(TimeUnit.MILLISECONDS)} ms. Summary: $resultSummary" }
-                log.debug { "${resultSummary.notifications().size} notifications after saving single artifact $artifactToSave:" }
+                log.debug { "Saved single artifact $parent in ${resultSummary.resultAvailableAfter(TimeUnit.MILLISECONDS)} ms. Summary: $resultSummary" }
+                log.debug { "${resultSummary.notifications().size} notifications after saving single artifact $parent:" }
                 resultSummary.notifications().forEach { log.debug { "\t$it" } }
             }
         }
@@ -140,8 +142,8 @@ class DirectDatabaseAccess(private val client: Neo4jClient) {
         }
     }
 
-    private val ArtifactCoordinate.cypherNode
-        get() = "(a:Artifact { id:'${this.toString()}', g:'${groupId.gId}', a:'${artifactId.aId}' })"
+    private fun ArtifactCoordinate.getCypherNode(nodeName: String = "a") =
+        "($nodeName:Artifact { id:'${this.toString()}', g:'${groupId.gId}', a:'${artifactId.aId}' })"
 
     private fun ReleaseCoordinate.mergeClause(nodeName: String = "r") =
         """

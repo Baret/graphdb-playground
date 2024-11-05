@@ -58,9 +58,12 @@ class MavenImportService(private val mavenConfig: MavenConfig, private val clien
 
             return@coroutineScope mavenCaller.parentOf(releaseCoordinate)
                 ?.let { ArtifactCoordinate(it.groupId, it.artifactId) }
-                ?.also {
+                ?.also { parent ->
                     launch {
-                        databaseCaller.saveArtifact(it)
+                        databaseCaller.saveArtifactWithParent(
+                            child = ArtifactCoordinate(releaseCoordinate.groupId, releaseCoordinate.artifactId),
+                            parent = parent
+                        )
                     }
                 }
         }
