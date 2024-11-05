@@ -63,6 +63,7 @@ class DirectDatabaseAccess(private val client: Neo4jClient) {
     suspend fun saveArtifactWithParent(child: ArtifactCoordinate, parent: ArtifactCoordinate) {
         coroutineScope {
             launch(Dispatchers.IO) {
+                // TODO: a release has a parent, not an artifact!
                 log.debug { "Saving single artifact $parent" }
                 val resultSummary: ResultSummary = client.query {
                     """
