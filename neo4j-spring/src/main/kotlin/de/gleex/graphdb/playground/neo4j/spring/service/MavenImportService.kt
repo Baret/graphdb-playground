@@ -18,6 +18,9 @@ class MavenImportService(private val mavenConfig: MavenConfig, private val clien
     suspend fun import(releaseCoordinate: ReleaseCoordinate): Artifact {
         log.debug { "Starting to import release coordinate $releaseCoordinate" }
         return coroutineScope {
+            requireNotNull(MavenCaller(mavenConfig).locatePomFile(releaseCoordinate)) {
+                "$releaseCoordinate does not seem to be a valid maven release"
+            }
             val savedDependencies: Deferred<List<Dependency>> = async { importDependencies(releaseCoordinate) }
             val parent: Deferred<ArtifactCoordinate?> = async { createParent(releaseCoordinate) }
             val modules: Deferred<Set<ArtifactCoordinate>> = async { createModulesForArtifact(releaseCoordinate) }
