@@ -36,8 +36,41 @@ class MavenCaller(private val config: MavenConfig) {
         }
     }
 
-    fun parentOf(releaseCoordinate: ReleaseCoordinate): ArtifactCoordinate? {
-        TODO("Not yet implemented")
+    suspend fun parentOf(releaseCoordinate: ReleaseCoordinate): ReleaseCoordinate? {
+        val pomPath = (locatePomFile(releaseCoordinate)
+            ?: return null)
+        return coroutineScope {
+            log.debug { "Invoking maven to detect parent of $releaseCoordinate" }
+            val relevantLineRegex = Regex("Ancestor\\sPOMs:\\s(?<groupId>\\S+):(?<artifactId>\\S+):(?<version>\\S+)")
+            var detectedParent: ReleaseCoordinate? = null
+            val invocationSuccessful = executeMaven("find parent of $releaseCoordinate") {
+                pomFile = pomPath.toFile()
+                goals = listOf("$PLUGIN:display-ancestors")
+                isRecursive = false
+                setOutputHandler { line ->
+                    log.debug { "[parentDetection] $line" }
+                    val matchResult = relevantLineRegex.find(line)
+                    val gIdMatch = matchResult?.groups?.get("groupId")
+                    val aIdMatch = matchResult?.groups?.get("artifactId")
+                    val versionMatch = matchResult?.groups?.get("version")
+                    log.debug { "MatchResult=$matchResult gIdMatch=$gIdMatch aIdMatch=$aIdMatch versionMatch=$versionMatch" }
+                    if (gIdMatch != null && aIdMatch != null && versionMatch != null) {
+                        log.debug { "\tFound parent in line: $line" }
+                        detectedParent = ReleaseCoordinate(
+                            GroupId(gIdMatch.value),
+                            ArtifactId(aIdMatch.value),
+                            Version(versionMatch.value)
+                        )
+                        log.debug { "Parent of $releaseCoordinate is $detectedParent" }
+                    }
+                }
+            }
+            if(!invocationSuccessful) {
+                log.debug { "No parent found for $releaseCoordinate" }
+                return@coroutineScope null
+            }
+            return@coroutineScope detectedParent
+        }
     }
 
     private suspend fun locatePomFile(releaseCoordinate: ReleaseCoordinate): Path? {
@@ -88,7 +121,7 @@ class MavenCaller(private val config: MavenConfig) {
             addArg("-DoutputEncoding=UTF-8")
             addArg("-Dtokens=whitespace")
             addArg("-DoutputFile=$depTreeFileName")
-            setOutputHandler { log.debug { it } }
+            setOutputHandler { log.debug { "[depTree] $it" } }
         }
         if (invocationSuccessful.not()) {
             return emptyList()

@@ -57,7 +57,8 @@ class MavenImportService(private val mavenConfig: MavenConfig, private val clien
             val databaseCaller = DirectDatabaseAccess(client)
 
             return@coroutineScope mavenCaller.parentOf(releaseCoordinate)
-                ?.also<ArtifactCoordinate> {
+                ?.let { ArtifactCoordinate(it.groupId, it.artifactId) }
+                ?.also {
                     launch {
                         databaseCaller.saveArtifact(it)
                     }
