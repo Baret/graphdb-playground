@@ -55,13 +55,12 @@ class MavenImportService(private val mavenConfig: MavenConfig, private val clien
             val mavenCaller = MavenCaller(mavenConfig)
             val databaseCaller = DirectDatabaseAccess(client)
 
-            val parent: ArtifactCoordinate? = mavenCaller.parentOf(releaseCoordinate)
-                ?.also {
+            return@coroutineScope mavenCaller.parentOf(releaseCoordinate)
+                ?.also<ArtifactCoordinate> {
                     launch {
                         databaseCaller.saveArtifact(it)
                     }
                 }
-            parent
         }
     }
 }
