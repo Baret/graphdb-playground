@@ -40,7 +40,7 @@ class MavenCaller(private val config: MavenConfig) {
         val pomPath = (locatePomFile(releaseCoordinate)
             ?: return null)
         return coroutineScope {
-            log.debug { "Invoking maven to detect parent of $releaseCoordinate" }
+            log.info { "Invoking maven to detect parent of $releaseCoordinate" }
             val relevantLineRegex = Regex("Ancestor\\sPOMs:\\s(?<groupId>\\S+):(?<artifactId>\\S+):(?<version>\\S+)")
             var detectedParent: ReleaseCoordinate? = null
             val invocationSuccessful = executeMaven("find parent of $releaseCoordinate") {
@@ -61,12 +61,12 @@ class MavenCaller(private val config: MavenConfig) {
                             ArtifactId(aIdMatch.value),
                             Version(versionMatch.value)
                         )
-                        log.debug { "Parent of $releaseCoordinate is $detectedParent" }
+                        log.info { "Parent of $releaseCoordinate is $detectedParent" }
                     }
                 }
             }
             if(!invocationSuccessful) {
-                log.debug { "No parent found for $releaseCoordinate" }
+                log.info { "No parent found for $releaseCoordinate" }
                 return@coroutineScope null
             }
             return@coroutineScope detectedParent
@@ -80,7 +80,7 @@ class MavenCaller(private val config: MavenConfig) {
             .resolve(releaseCoordinate.version.versionString)
             .resolve("${releaseCoordinate.artifactId.aId}-${releaseCoordinate.version.versionString}.pom")
         if (artifactPomFile.exists()) {
-            log.debug { "Found pom file for $releaseCoordinate, no need to invoke maven. Full path: ${artifactPomFile.absolutePathString()}" }
+            log.info { "Found pom file for $releaseCoordinate, no need to invoke maven. Full path: ${artifactPomFile.absolutePathString()}" }
             return artifactPomFile
         }
         return downloadPom(releaseCoordinate, artifactPomFile)
@@ -90,7 +90,7 @@ class MavenCaller(private val config: MavenConfig) {
         releaseCoordinate: ReleaseCoordinate,
         artifactPomFile: Path
     ): Path? {
-        log.debug { "Invoking maven to get artifact $releaseCoordinate" }
+        log.info { "Invoking maven to get artifact $releaseCoordinate" }
         val invocationSuccessful = executeMaven("get pom file for $releaseCoordinate") {
             goals = listOf("$PLUGIN:get")
             addArgs(DEFAULT_ARGS)
@@ -101,7 +101,7 @@ class MavenCaller(private val config: MavenConfig) {
             return null
         } else {
             if (artifactPomFile.exists()) {
-                log.debug { "Downloaded pom file for release $releaseCoordinate to ${artifactPomFile.absolutePathString()}" }
+                log.info { "Downloaded pom file for release $releaseCoordinate to ${artifactPomFile.absolutePathString()}" }
                 return artifactPomFile
             } else {
                 log.error { "Could not find downloaded pom file at ${artifactPomFile.absolutePathString()}" }
@@ -111,7 +111,7 @@ class MavenCaller(private val config: MavenConfig) {
     }
 
     private suspend fun resolveDependencies(releaseCoordinate: ReleaseCoordinate, pomPath: Path): List<Dependency> {
-        log.debug { "Invoking maven to get dependencies for pom file $pomPath" }
+        log.info { "Invoking maven to get dependencies for pom file $pomPath" }
 
         val depTreeFileName = "${releaseCoordinate.toString().replace(":", "_")}_depTree.txt"
         val invocationSuccessful = executeMaven("get dependencies for file $pomPath") {
@@ -168,6 +168,7 @@ class MavenCaller(private val config: MavenConfig) {
                         .also { log.debug { "Adding dependency $it" } }
                 }
             return dependencies
+                .also { log.info { "Found ${it.size} dependencies for release $releaseCoordinate" } }
         }
     }
 
@@ -208,7 +209,7 @@ class MavenCaller(private val config: MavenConfig) {
     }
 
     companion object {
-        private val PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1"
+        private const val PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1"
         private val DEFAULT_ARGS = listOf(
             "--show-version",
             "-B",
