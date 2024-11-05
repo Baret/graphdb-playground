@@ -3,8 +3,7 @@ package de.gleex.graphdb.playground.neo4j.spring.service
 import de.gleex.graphdb.playground.model.*
 import de.gleex.graphdb.playground.neo4j.spring.config.MavenConfig
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import org.apache.maven.shared.invoker.DefaultInvocationRequest
 import org.apache.maven.shared.invoker.DefaultInvoker
 import org.apache.maven.shared.invoker.InvocationResult
@@ -59,17 +58,13 @@ class MavenCaller(private val config: MavenConfig) {
         artifactPomFile: Path
     ): Path? {
         log.debug { "Invoking maven to get artifact $releaseCoordinate" }
-        val errors: MutableList<String> = mutableListOf()
-        val invocationResult = mavenInvoker.execute(DefaultInvocationRequest().apply {
+        val invocationSuccessful = executeMaven("get pom file for $releaseCoordinate") {
             goals = listOf("$PLUGIN:get")
             addArgs(DEFAULT_ARGS)
             addArg("-Dartifact=$releaseCoordinate")
             addArg("-Dtransitive=false")
-            setErrorHandler { errors += it }
-        })
-        if (invocationResult.exitCode != 0 || errors.isNotEmpty()) {
-            log.error { "Getting artifact $releaseCoordinate failed. Maven exited with code ${invocationResult.exitCode}" }
-            logErrors(invocationResult, errors)
+        }
+        if (invocationSuccessful.not()) {
             return null
         } else {
             if (artifactPomFile.exists()) {
@@ -84,27 +79,18 @@ class MavenCaller(private val config: MavenConfig) {
 
     private suspend fun resolveDependencies(releaseCoordinate: ReleaseCoordinate, pomPath: Path): List<Dependency> {
         log.debug { "Invoking maven to get dependencies for pom file $pomPath" }
-        val errors: MutableList<String> = mutableListOf()
+
         val depTreeFileName = "${releaseCoordinate.toString().replace(":", "_")}_depTree.txt"
-        val invocationResult = mavenInvoker.execute(DefaultInvocationRequest().apply {
+        val invocationSuccessful = executeMaven("get dependencies for file $pomPath") {
             goals = listOf("$PLUGIN:tree")
             pomFile = pomPath.toFile()
             addArgs(DEFAULT_ARGS)
             addArg("-DoutputEncoding=UTF-8")
             addArg("-Dtokens=whitespace")
             addArg("-DoutputFile=$depTreeFileName")
-            setErrorHandler { errors += it }
             setOutputHandler { log.debug { it } }
-        }.also {
-            log.debug {
-                "InvocationRequest: mvn -f ${it.pomFile} ${it.goals.joinToString(" ")} ${
-                    it.args.joinToString(" ")
-                }"
-            }
-        })
-        if (invocationResult.exitCode != 0 || errors.isNotEmpty()) {
-            log.error { "Getting dependencies for pom file $pomPath failed. Maven exited with code ${invocationResult.exitCode}" }
-            logErrors(invocationResult, errors)
+        }
+        if (invocationSuccessful.not()) {
             return emptyList()
         } else {
             val depTreeFile = pomPath.resolveSibling(depTreeFileName)
@@ -149,6 +135,29 @@ class MavenCaller(private val config: MavenConfig) {
                         .also { log.debug { "Adding dependency $it" } }
                 }
             return dependencies
+        }
+    }
+
+    private suspend fun executeMaven(
+        requestedAction: String,
+        executionConfig: DefaultInvocationRequest.() -> Unit
+    ): Boolean {
+        return coroutineScope {
+            val errors: MutableList<String> = mutableListOf()
+            val mavenJob = async(Dispatchers.IO) {
+                mavenInvoker.execute(
+                    DefaultInvocationRequest()
+                        .apply { setErrorHandler { errors += it } }
+                        .apply(executionConfig))
+            }
+            val invocationResult = mavenJob.await()
+            if (invocationResult.exitCode != 0 || errors.isNotEmpty()) {
+                log.error { "Invoking maven to '$requestedAction' failed. Maven exited with code ${invocationResult.exitCode}" }
+                logErrors(invocationResult, errors)
+                return@coroutineScope false
+            } else {
+                return@coroutineScope true
+            }
         }
     }
 

@@ -47,7 +47,8 @@ class MavenImportService(private val mavenConfig: MavenConfig, private val clien
     }
 
     private fun createModulesForArtifact(releaseCoordinate: ReleaseCoordinate): Set<ArtifactCoordinate> {
-        TODO("Not yet implemented")
+        log.warn { "CREATING MODULES NOT YET IMPLEMENTED (got release $releaseCoordinate)" }
+        return emptySet()
     }
 
     private suspend fun createParent(releaseCoordinate: ReleaseCoordinate): ArtifactCoordinate? {
