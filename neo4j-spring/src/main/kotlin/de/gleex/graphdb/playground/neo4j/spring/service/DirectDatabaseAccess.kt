@@ -60,17 +60,16 @@ class DirectDatabaseAccess(private val client: Neo4jClient) {
         }
     }
 
-    suspend fun saveArtifactWithParent(child: ArtifactCoordinate, parent: ArtifactCoordinate) {
+    suspend fun saveReleaseWithParent(child: ReleaseCoordinate, parent: ReleaseCoordinate) {
         coroutineScope {
             launch(Dispatchers.IO) {
-                // TODO: a release has a parent, not an artifact!
                 log.debug { "Saving single artifact $parent" }
                 val resultSummary: ResultSummary = client.query {
                     """
-                        MERGE ${parent.getCypherNode("p")}
-                        MERGE ${child.getCypherNode("c")}
-                        MERGE (p) -[m: HAS_MODULE]-> (c)
-                        RETURN p, m, c
+                        ${parent.mergeClause("p")}
+                        ${child.mergeClause("c")}
+                        MERGE (c) -[m: HAS_PARENT]-> (p)
+                        RETURN c, m, p
                     """.trimIndent()
                 }
                     .run()

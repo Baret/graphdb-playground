@@ -22,7 +22,7 @@ class MavenImportService(private val mavenConfig: MavenConfig, private val clien
                 "$releaseCoordinate does not seem to be a valid maven release"
             }
             val savedDependencies: Deferred<List<Dependency>> = async { importDependencies(releaseCoordinate) }
-            val parent: Deferred<ArtifactCoordinate?> = async { createParent(releaseCoordinate) }
+            val parent: Deferred<ReleaseCoordinate?> = async { createParent(releaseCoordinate) }
             val modules: Deferred<Set<ArtifactCoordinate>> = async { createModulesForArtifact(releaseCoordinate) }
             val release = Release(
                 groupId = releaseCoordinate.groupId,
@@ -33,7 +33,8 @@ class MavenImportService(private val mavenConfig: MavenConfig, private val clien
             val artifact = Artifact(
                 groupId = releaseCoordinate.groupId,
                 artifactId = releaseCoordinate.artifactId,
-                parent = parent.await(),
+                // TODO: artifacts dont have parents
+                parent = parent.await()?.let { ArtifactCoordinate(it.groupId, it.artifactId) },
                 modules = modules.await(),
                 releases = setOf(release)
             )
@@ -54,17 +55,16 @@ class MavenImportService(private val mavenConfig: MavenConfig, private val clien
         return emptySet()
     }
 
-    private suspend fun createParent(releaseCoordinate: ReleaseCoordinate): ArtifactCoordinate? {
+    private suspend fun createParent(releaseCoordinate: ReleaseCoordinate): ReleaseCoordinate? {
         return coroutineScope {
             val mavenCaller = MavenCaller(mavenConfig)
             val databaseCaller = DirectDatabaseAccess(client)
 
             return@coroutineScope mavenCaller.parentOf(releaseCoordinate)
-                ?.let { ArtifactCoordinate(it.groupId, it.artifactId) }
                 ?.also { parent ->
                     launch {
-                        databaseCaller.saveArtifactWithParent(
-                            child = ArtifactCoordinate(releaseCoordinate.groupId, releaseCoordinate.artifactId),
+                        databaseCaller.saveReleaseWithParent(
+                            child = releaseCoordinate,
                             parent = parent
                         )
                     }
