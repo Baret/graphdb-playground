@@ -6,18 +6,17 @@ import de.gleex.graphdb.playground.model.ReleaseCoordinate
 import de.gleex.graphdb.playground.model.Version
 import de.gleex.graphdb.playground.neo4j.spring.config.MavenConfig
 import de.gleex.graphdb.playground.neo4j.spring.service.MavenCaller
-import de.gleex.graphdb.playground.neo4j.spring.service.MavenImportService
+import io.github.allangomes.kotlinwind.css.FULL
+import io.github.allangomes.kotlinwind.css.I400
+import io.github.allangomes.kotlinwind.css.I800
 import io.github.allangomes.kotlinwind.css.kw
 import kotlinx.html.*
-import kotlinx.html.dom.createHTMLDocument
-import kotlinx.html.dom.serialize
 import kotlinx.html.stream.createHTML
 import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseBody
-import org.w3c.dom.Document
 
 @Controller
 @RequestMapping("/import")
@@ -38,9 +37,28 @@ class ImportFrontendController(private val config: MavenConfig) {
             body {
                 div{
                     style = kw.inline { flex.col.items_center.justify_start.gap[4] }
-                    h1 { +"Import $groupId into the dependency DB" }
+                    h3 {
+                        +"Import "
+                        highlightedCoordinate(releaseToImport)
+                        +" into the dependency DB"
+                    }
                     div {
-                        p { +"Here comes a form..." }
+                        form(
+                            action = "/release/import/${releaseToImport.groupId.gId}/${releaseToImport.artifactId.aId}/${releaseToImport.version.versionString}",
+                            method = FormMethod.post
+                        ) {
+                            button {
+                                style = kw.inline {
+                                    font.bold
+                                    border.rounded[FULL]
+                                    padding[4]
+                                    background.sky[I400]
+                                    background.sky[I800]
+                                }
+                                type = ButtonType.submit
+                                +"Start import"
+                            }
+                        }
                     }
                 }
             }
@@ -60,10 +78,7 @@ class ImportFrontendController(private val config: MavenConfig) {
                     }
                     p {
                         +"The given coordinates "
-                        b {
-                            style = kw.inline { text.color["red"] }
-                            +releaseToImport.toString()
-                        }
+                        highlightedCoordinate(releaseToImport)
                         +" do not locate a valid maven release"
                     }
                 }
@@ -99,6 +114,13 @@ class ImportFrontendController(private val config: MavenConfig) {
 
                 }
             }
+        }
+    }
+
+    private fun HtmlBlockInlineTag.highlightedCoordinate(releaseToImport: ReleaseCoordinate) {
+        b {
+            style = kw.inline { text.color["red"] }
+            +releaseToImport.toString()
         }
     }
 }
