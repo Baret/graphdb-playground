@@ -72,6 +72,11 @@ class MavenCaller(private val config: MavenConfig) {
         }
     }
 
+    /**
+     * Returns the [Path] to the pom file of the given release. If this method returns `null`, maven
+     * was not able to locate the given release. Mosty possibly the given [ReleaseCoordinate] does not
+     * locate a valid maven release.
+     */
     suspend fun locatePomFile(releaseCoordinate: ReleaseCoordinate): Path? {
         val artifactPomFile: Path = repoBasePath
             .resolve(releaseCoordinate.groupId.gId.replace('.', File.separatorChar))
