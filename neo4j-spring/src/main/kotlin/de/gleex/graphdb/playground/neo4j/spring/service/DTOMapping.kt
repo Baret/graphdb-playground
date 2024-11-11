@@ -36,7 +36,8 @@ internal fun ReleaseEntity.toDomainModel(): Release =
                 0,
                 dbDependency.dependsOn.let {
                     ReleaseCoordinate(GroupId(it.g), ArtifactId(it.a), Version(it.version))
-                }
+                },
+                dbDependency.scope
             )
         }.toSet()
     )
@@ -50,6 +51,6 @@ internal fun Release.toDbEntity(resolveDependency: (ReleaseCoordinate) -> Releas
     minor = version.minor,
     patch = version.patch,
     dependencies = dependencies.map {
-        DependencyRelationship(id = null, treeDepth = it.treeDepth, dependsOn = resolveDependency(it.release))
+        DependencyRelationship(id = null, treeDepth = it.treeDepth, dependsOn = resolveDependency(it.release), scope = it.scope)
     }.toSet()
 )

@@ -173,7 +173,8 @@ class MavenCaller(private val config: MavenConfig) {
                 dependencies += Dependency(
                     dependencyCoordinate,
                     depth,
-                    treeParent
+                    treeParent,
+                    coordinateComponents[4]
                 )
                     .also { log.debug { "Adding dependency $it" } }
             }

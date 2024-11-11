@@ -13,5 +13,6 @@ data class DependencyRelationship(
     var id: Long?,
     val treeDepth: Int,
     @TargetNode
-    val dependsOn: ReleaseEntity
+    val dependsOn: ReleaseEntity,
+    val scope: String?
 )

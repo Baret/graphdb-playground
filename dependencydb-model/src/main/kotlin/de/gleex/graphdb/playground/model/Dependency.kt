@@ -6,5 +6,6 @@ package de.gleex.graphdb.playground.model
 data class Dependency(
     val release: ReleaseCoordinate,
     val treeDepth: Int,
-    val treeParent: ReleaseCoordinate
+    val treeParent: ReleaseCoordinate,
+    val scope: String?
 )

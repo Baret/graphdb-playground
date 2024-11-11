@@ -88,7 +88,7 @@ class DirectDatabaseAccess(private val client: Neo4jClient) {
                     """
                         ${rootRelease.mergeClause("root")}
                         ${dependency.release.mergeClause("dependency")}
-                        MERGE (root) -[dep:DEPENDS_ON{ treeDepth:${dependency.treeDepth}, treeParent:'${dependency.treeParent}' }]-> (dependency)
+                        MERGE (root) -[dep:DEPENDS_ON{ treeDepth:${dependency.treeDepth}, treeParent:'${dependency.treeParent}'${dependency.scope?.let { ", scope:'${it}'" } ?: ""} }]-> (dependency)
                         RETURN root, dep, dependency
                     """.trimIndent()
                 }
