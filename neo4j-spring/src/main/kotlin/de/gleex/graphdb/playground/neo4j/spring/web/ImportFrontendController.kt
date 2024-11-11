@@ -8,7 +8,6 @@ import de.gleex.graphdb.playground.neo4j.spring.config.MavenConfig
 import de.gleex.graphdb.playground.neo4j.spring.service.MavenCaller
 import io.github.allangomes.kotlinwind.css.FULL
 import io.github.allangomes.kotlinwind.css.I400
-import io.github.allangomes.kotlinwind.css.I800
 import io.github.allangomes.kotlinwind.css.kw
 import kotlinx.html.*
 import kotlinx.html.stream.createHTML
@@ -53,7 +52,6 @@ class ImportFrontendController(private val config: MavenConfig) {
                                     border.rounded[FULL]
                                     padding[4]
                                     background.sky[I400]
-                                    background.sky[I800]
                                 }
                                 type = ButtonType.submit
                                 +"Start import"
