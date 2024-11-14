@@ -45,7 +45,7 @@ class MavenCaller(private val config: MavenConfig) {
             var detectedParent: ReleaseCoordinate? = null
             val invocationSuccessful = executeMaven("find parent of $releaseCoordinate") {
                 pomFile = pomPath.toFile()
-                goals = listOf("$PLUGIN:display-ancestors")
+                goals = listOf("$DEPENDENCY_PLUGIN:display-ancestors")
                 isRecursive = false
                 setOutputHandler { line ->
                     log.debug { "[parentDetection] $line" }
@@ -73,6 +73,36 @@ class MavenCaller(private val config: MavenConfig) {
     }
 
     /**
+     * Finds all modules of the given [ReleaseCoordinate] and the modules of these and so on.
+     *
+     * @return a map of parent to list of modules
+     */
+    suspend fun resolveModulesRecursively(releaseCoordinate: ReleaseCoordinate): Map<ReleaseCoordinate, Set<ReleaseCoordinate>> {
+        return coroutineScope {
+            log.info { "Resolving modules of $releaseCoordinate" }
+            val moduleTree: MutableMap<ReleaseCoordinate, MutableSet<ReleaseCoordinate>> = mutableMapOf(releaseCoordinate to mutableSetOf())
+            val pomPath = locatePomFile(releaseCoordinate) ?: return@coroutineScope moduleTree
+            // mvn -Dexec.executable='echo' -Dexec.args='${project.parent.groupId}:${project.parent.artifactId}:${project.parent.version} -> ${project.groupId}:${project.artifactId}:${project.version}' exec:exec -q
+            executeMaven("resolve modules of $releaseCoordinate") {
+                pomFile = pomPath.toFile()
+                goals = listOf("$EXEC_PLUGIN:exec")
+                addArgs(DEFAULT_ARGS)
+                addArg("-q")
+                addArgs(listOf(
+                    "-Dexec.executable='echo'",
+                    "-Dexec.args='\${project.parent.groupId}:\${project.parent.artifactId}:\${project.parent.version} -> \${project.groupId}:\${project.artifactId}:\${project.version}'"
+                ))
+                setOutputHandler {
+                    // split(" -> ")
+                }
+            }
+            log.info { "Resolved modules of $releaseCoordinate" }
+            log.info { "$releaseCoordinate has ${moduleTree[releaseCoordinate]?.size?:0} modules. Found ${moduleTree.keys.size} module parents total and ${moduleTree.values.sumOf { it.size }} modules total" }
+            moduleTree
+        }
+    }
+
+    /**
      * Returns the [Path] to the pom file of the given release. If this method returns `null`, maven
      * was not able to locate the given release. Mosty possibly the given [ReleaseCoordinate] does not
      * locate a valid maven release.
@@ -96,7 +126,7 @@ class MavenCaller(private val config: MavenConfig) {
     ): Path? {
         log.info { "Invoking maven to get artifact $releaseCoordinate" }
         val invocationSuccessful = executeMaven("get pom file for $releaseCoordinate") {
-            goals = listOf("$PLUGIN:get")
+            goals = listOf("$DEPENDENCY_PLUGIN:get")
             addArgs(DEFAULT_ARGS)
             addArg("-Dartifact=$releaseCoordinate")
             addArg("-Dtransitive=false")
@@ -123,7 +153,7 @@ class MavenCaller(private val config: MavenConfig) {
         } else {
             log.info { "Invoking maven to get dependencies for pom file $pomPath" }
             val invocationSuccessful = executeMaven("get dependencies for file $pomPath") {
-                goals = listOf("$PLUGIN:tree")
+                goals = listOf("$DEPENDENCY_PLUGIN:tree")
                 pomFile = pomPath.toFile()
                 isRecursive = false
                 addArgs(DEFAULT_ARGS)
@@ -219,7 +249,8 @@ class MavenCaller(private val config: MavenConfig) {
     }
 
     companion object {
-        private const val PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1"
+        private const val DEPENDENCY_PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1"
+        private const val EXEC_PLUGIN = "org.codehaus.mojo:exec-maven-plugin:3.5.0"
         private val DEFAULT_ARGS = listOf(
             "--show-version",
             "-B",

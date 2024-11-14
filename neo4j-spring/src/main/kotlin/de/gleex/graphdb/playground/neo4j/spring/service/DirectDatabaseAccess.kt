@@ -63,7 +63,7 @@ class DirectDatabaseAccess(private val client: Neo4jClient) {
     suspend fun saveReleaseWithParent(child: ReleaseCoordinate, parent: ReleaseCoordinate) {
         coroutineScope {
             launch(Dispatchers.IO) {
-                log.debug { "Saving single artifact $parent" }
+                log.debug { "Saving parent $parent with child $child" }
                 val resultSummary: ResultSummary = client.query {
                     """
                         ${parent.mergeClause("p")}
@@ -73,8 +73,8 @@ class DirectDatabaseAccess(private val client: Neo4jClient) {
                     """.trimIndent()
                 }
                     .run()
-                log.debug { "Saved single artifact $parent in ${resultSummary.resultAvailableAfter(TimeUnit.MILLISECONDS)} ms. Summary: $resultSummary" }
-                log.debug { "${resultSummary.notifications().size} notifications after saving single artifact $parent:" }
+                log.debug { "Saved parent $parent with child $child in ${resultSummary.resultAvailableAfter(TimeUnit.MILLISECONDS)} ms. Summary: $resultSummary" }
+                log.debug { "${resultSummary.notifications().size} notifications after saving parent $parent with child $child:" }
                 resultSummary.notifications().forEach { log.debug { "\t$it" } }
             }
         }

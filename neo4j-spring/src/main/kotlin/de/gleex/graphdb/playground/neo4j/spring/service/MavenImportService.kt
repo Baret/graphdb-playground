@@ -50,9 +50,22 @@ class MavenImportService(private val mavenConfig: MavenConfig, private val clien
         return savedDependencies
     }
 
-    private fun createModulesForArtifact(releaseCoordinate: ReleaseCoordinate): Set<ArtifactCoordinate> {
-        log.warn { "CREATING MODULES NOT YET IMPLEMENTED (got release $releaseCoordinate)" }
-        return emptySet()
+    private suspend fun createModulesForArtifact(releaseCoordinate: ReleaseCoordinate): Set<ArtifactCoordinate> {
+        return coroutineScope {
+            var savedModules: Set<ArtifactCoordinate> = emptySet()
+            val moduleTree: Map<ReleaseCoordinate, Set<ReleaseCoordinate>> = MavenCaller(mavenConfig).resolveModulesRecursively(releaseCoordinate)
+            val dbAccess = DirectDatabaseAccess(client)
+            moduleTree.map { (parent, modules) ->
+                launch { dbAccess.saveModules(parent, modules) }
+                    .invokeOnCompletion {
+                        if(parent == releaseCoordinate) {
+                            savedModules = modules.map { ArtifactCoordinate(it.groupId, it.artifactId) }.toSet()
+                        }
+                    }
+            }
+            savedModules
+        }
+        // mvn -Dexec.executable='echo' -Dexec.args='${project.parent.groupId}:${project.parent.artifactId}:${project.parent.version} -> ${project.groupId}:${project.artifactId}:${project.version}' exec:exec -q
     }
 
     private suspend fun createParent(releaseCoordinate: ReleaseCoordinate): ReleaseCoordinate? {
