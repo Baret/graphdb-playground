@@ -85,24 +85,45 @@ class MavenCaller(private val config: MavenConfig) {
             // mvn -Dexec.executable='echo' -Dexec.args='${project.parent.groupId}:${project.parent.artifactId}:${project.parent.version} -> ${project.groupId}:${project.artifactId}:${project.version}' exec:exec -q
             executeMaven("resolve modules of $releaseCoordinate") {
                 pomFile = pomPath.toFile()
-                goals = listOf("$EXEC_PLUGIN:exec")
+//                goals = listOf("$EXEC_PLUGIN:exec")
+                goals = listOf("help:evaluate")
                 isQuiet = true
                 isBatchMode = false
                 addArg(ARG_REPO)
                 addArgs(listOf(
-                    "-Dexec.executable='echo'",
-                    "-Dexec.args='\${project.parent.groupId}:\${project.parent.artifactId}:\${project.parent.version} -> \${project.groupId}:\${project.artifactId}:\${project.version}'"
+                    "-Dexpression=project.modules"
+                    //"-Dexec.executable='echo'",
+                    //"-Dexec.args='\${project.parent.groupId}:\${project.parent.artifactId}:\${project.parent.version} -> \${project.groupId}:\${project.artifactId}:\${project.version}'"
+                    //"-Dexec.args='foo -> bar'"
                 ))
                 setOutputHandler {
+                    /*
+                    <strings>
+  <string>util</string>
+  <string>model</string>
+  <string>game</string>
+</strings>
+
+                     */
                     log.debug { "[resolveModules] $it" }
-                    val parentAndModule = it.split(" -> ")
-                    val parentStrings = parentAndModule[0].split(":")
-                    val parent = ReleaseCoordinate(GroupId(parentStrings[0]), ArtifactId(parentStrings[1]), Version(parentStrings[2]))
-                    val moduleStrings = parentAndModule[1].split(":")
-                    val module = ReleaseCoordinate(GroupId(moduleStrings[0]), ArtifactId(moduleStrings[1]), Version(moduleStrings[2]))
-                    log.debug { "Registering module. Parent $parent -> module $module" }
-                    moduleTree.merge(parent, mutableSetOf(module)) { set, newSet -> (set + newSet).toMutableSet()}
-                    log.debug { "Modules of $parent: ${moduleTree[parent]?.joinToString()}" }
+                    if(it.matches(Regex("\\S+ -> \\S+"))) {
+                        val parentAndModule = it.split(" -> ")
+                        val parentStrings = parentAndModule[0].split(":")
+                        val parent = ReleaseCoordinate(
+                            GroupId(parentStrings[0]),
+                            ArtifactId(parentStrings[1]),
+                            Version(parentStrings[2])
+                        )
+                        val moduleStrings = parentAndModule[1].split(":")
+                        val module = ReleaseCoordinate(
+                            GroupId(moduleStrings[0]),
+                            ArtifactId(moduleStrings[1]),
+                            Version(moduleStrings[2])
+                        )
+                        log.debug { "Registering module. Parent $parent -> module $module" }
+                        moduleTree.merge(parent, mutableSetOf(module)) { set, newSet -> (set + newSet).toMutableSet() }
+                        log.debug { "Modules of $parent: ${moduleTree[parent]?.joinToString()}" }
+                    }
                 }
             }
             log.info { "Resolved modules of $releaseCoordinate" }
