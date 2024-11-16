@@ -5,3 +5,6 @@ spring:
     authentication:
       username: neo4j
       password: secret
+  jackson:
+    serialization:
+      indent_output: true

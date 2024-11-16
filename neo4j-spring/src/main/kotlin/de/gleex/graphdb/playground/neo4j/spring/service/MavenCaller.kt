@@ -86,14 +86,23 @@ class MavenCaller(private val config: MavenConfig) {
             executeMaven("resolve modules of $releaseCoordinate") {
                 pomFile = pomPath.toFile()
                 goals = listOf("$EXEC_PLUGIN:exec")
-                addArgs(DEFAULT_ARGS)
-                addArg("-q")
+                isQuiet = true
+                isBatchMode = false
+                addArg(ARG_REPO)
                 addArgs(listOf(
                     "-Dexec.executable='echo'",
                     "-Dexec.args='\${project.parent.groupId}:\${project.parent.artifactId}:\${project.parent.version} -> \${project.groupId}:\${project.artifactId}:\${project.version}'"
                 ))
                 setOutputHandler {
-                    // split(" -> ")
+                    log.debug { "[resolveModules] $it" }
+                    val parentAndModule = it.split(" -> ")
+                    val parentStrings = parentAndModule[0].split(":")
+                    val parent = ReleaseCoordinate(GroupId(parentStrings[0]), ArtifactId(parentStrings[1]), Version(parentStrings[2]))
+                    val moduleStrings = parentAndModule[1].split(":")
+                    val module = ReleaseCoordinate(GroupId(moduleStrings[0]), ArtifactId(moduleStrings[1]), Version(moduleStrings[2]))
+                    log.debug { "Registering module. Parent $parent -> module $module" }
+                    moduleTree.merge(parent, mutableSetOf(module)) { set, newSet -> (set + newSet).toMutableSet()}
+                    log.debug { "Modules of $parent: ${moduleTree[parent]?.joinToString()}" }
                 }
             }
             log.info { "Resolved modules of $releaseCoordinate" }
@@ -251,10 +260,15 @@ class MavenCaller(private val config: MavenConfig) {
     companion object {
         private const val DEPENDENCY_PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1"
         private const val EXEC_PLUGIN = "org.codehaus.mojo:exec-maven-plugin:3.5.0"
+
+        private const val ARG_REPO = "-Dmaven.repo.local=./repo/"
+        private const val ARG_SHOW_VERSION = "--show-version"
+        private const val ARG_BATCH_MODE = "-B"
+
         private val DEFAULT_ARGS = listOf(
-            "--show-version",
-            "-B",
-            "-Dmaven.repo.local=./repo/"
+            ARG_SHOW_VERSION,
+            ARG_BATCH_MODE,
+            ARG_REPO
         )
     }
 }

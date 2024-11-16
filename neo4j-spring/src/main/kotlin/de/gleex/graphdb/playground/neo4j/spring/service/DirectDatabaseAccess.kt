@@ -164,4 +164,8 @@ class DirectDatabaseAccess(private val client: Neo4jClient) {
         "$nodeName.patch = ${version.patch}, " +
         "$nodeName.suffix = '${version.suffix}', " +
         "$nodeName.isSnapshot = ${version.isSnapshot}"
+
+    fun saveModules(parent: ReleaseCoordinate, modules: Set<ReleaseCoordinate>) {
+        log.info { "WOULD NOW SAVE ${modules.size} modules for release $parent" }
+    }
 }
