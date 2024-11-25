@@ -96,7 +96,7 @@ class MavenCaller(private val config: MavenConfig) {
                     //"-Dexec.args='\${project.parent.groupId}:\${project.parent.artifactId}:\${project.parent.version} -> \${project.groupId}:\${project.artifactId}:\${project.version}'"
                     //"-Dexec.args='foo -> bar'"
                 ))
-                setOutputHandler {
+                setOutputHandler { outputLine ->
                     /*
                     <strings>
   <string>util</string>
@@ -105,20 +105,16 @@ class MavenCaller(private val config: MavenConfig) {
 </strings>
 
                      */
-                    log.debug { "[resolveModules] $it" }
-                    if(it.matches(Regex("\\S+ -> \\S+"))) {
-                        val parentAndModule = it.split(" -> ")
-                        val parentStrings = parentAndModule[0].split(":")
-                        val parent = ReleaseCoordinate(
-                            GroupId(parentStrings[0]),
-                            ArtifactId(parentStrings[1]),
-                            Version(parentStrings[2])
-                        )
-                        val moduleStrings = parentAndModule[1].split(":")
+                    log.debug { "[resolveModules] $outputLine" }
+                    val regexResult = Regex("\\w+<string>(?<moduleName>\\S+)</string>").matchEntire(outputLine)
+                    val matchedModuleName = regexResult?.groups?.get("moduleName")
+                    // TODO: simplify, as we can not build the whole tree with help:evaluate
+                    if(matchedModuleName != null) {
+                        val parent = releaseCoordinate
                         val module = ReleaseCoordinate(
-                            GroupId(moduleStrings[0]),
-                            ArtifactId(moduleStrings[1]),
-                            Version(moduleStrings[2])
+                            parent.groupId,
+                            ArtifactId(matchedModuleName.value),
+                            parent.version
                         )
                         log.debug { "Registering module. Parent $parent -> module $module" }
                         moduleTree.merge(parent, mutableSetOf(module)) { set, newSet -> (set + newSet).toMutableSet() }
@@ -282,6 +278,7 @@ class MavenCaller(private val config: MavenConfig) {
         private const val DEPENDENCY_PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1"
         private const val EXEC_PLUGIN = "org.codehaus.mojo:exec-maven-plugin:3.5.0"
 
+        // TODO: always use the correct base path
         private const val ARG_REPO = "-Dmaven.repo.local=./repo/"
         private const val ARG_SHOW_VERSION = "--show-version"
         private const val ARG_BATCH_MODE = "-B"
