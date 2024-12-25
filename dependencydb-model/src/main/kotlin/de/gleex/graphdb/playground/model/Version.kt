@@ -1,5 +1,6 @@
 package de.gleex.graphdb.playground.model
 
+@ConsistentCopyVisibility
 data class Version private constructor(
     val versionString: String,
     val major: Int,
