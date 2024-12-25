@@ -78,6 +78,7 @@ class MavenCaller(private val config: MavenConfig) {
      * @return a map of parent to list of modules
      */
     suspend fun resolveModulesRecursively(releaseCoordinate: ReleaseCoordinate): Map<ReleaseCoordinate, Set<ReleaseCoordinate>> {
+        // TODO: implement some way to resolve artifact modules
         return coroutineScope {
             log.info { "Resolving modules of $releaseCoordinate" }
             val moduleTree: MutableMap<ReleaseCoordinate, MutableSet<ReleaseCoordinate>> = mutableMapOf(releaseCoordinate to mutableSetOf())
@@ -89,7 +90,6 @@ class MavenCaller(private val config: MavenConfig) {
                 goals = listOf("help:evaluate")
                 isQuiet = true
                 isBatchMode = false
-                addArg(ARG_REPO)
                 addArgs(listOf(
                     "-Dexpression=project.modules"
                     //"-Dexec.executable='echo'",
@@ -278,15 +278,12 @@ class MavenCaller(private val config: MavenConfig) {
         private const val DEPENDENCY_PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1"
         private const val EXEC_PLUGIN = "org.codehaus.mojo:exec-maven-plugin:3.5.0"
 
-        // TODO: always use the correct base path
-        private const val ARG_REPO = "-Dmaven.repo.local=./repo/"
         private const val ARG_SHOW_VERSION = "--show-version"
         private const val ARG_BATCH_MODE = "-B"
 
         private val DEFAULT_ARGS = listOf(
             ARG_SHOW_VERSION,
-            ARG_BATCH_MODE,
-            ARG_REPO
+            ARG_BATCH_MODE
         )
     }
 }
