@@ -83,49 +83,52 @@ class MavenCaller(private val config: MavenConfig) {
             log.info { "Resolving modules of $releaseCoordinate" }
             val moduleTree: MutableMap<ReleaseCoordinate, MutableSet<ReleaseCoordinate>> = mutableMapOf(releaseCoordinate to mutableSetOf())
             val pomPath = locatePomFile(releaseCoordinate) ?: return@coroutineScope moduleTree
-            // mvn -Dexec.executable='echo' -Dexec.args='${project.parent.groupId}:${project.parent.artifactId}:${project.parent.version} -> ${project.groupId}:${project.artifactId}:${project.version}' exec:exec -q
+            val moduleCandidates = mutableSetOf<ReleaseCoordinate>()
             executeMaven("resolve modules of $releaseCoordinate") {
-                pomFile = pomPath.toFile()
-//                goals = listOf("$EXEC_PLUGIN:exec")
                 goals = listOf("help:evaluate")
-                isQuiet = true
-                isBatchMode = false
+                isQuiet = false
+                isBatchMode = true
                 addArgs(listOf(
-                    "-Dexpression=project.modules"
-                    //"-Dexec.executable='echo'",
-                    //"-Dexec.args='\${project.parent.groupId}:\${project.parent.artifactId}:\${project.parent.version} -> \${project.groupId}:\${project.artifactId}:\${project.version}'"
-                    //"-Dexec.args='foo -> bar'"
+                    "-Dexpression=project.modules",
+                    "-Dartifact=$releaseCoordinate"
                 ))
                 setOutputHandler { outputLine ->
-                    /*
-                    <strings>
-  <string>util</string>
-  <string>model</string>
-  <string>game</string>
-</strings>
-
-                     */
                     log.debug { "[resolveModules] $outputLine" }
-                    val regexResult = Regex("\\w+<string>(?<moduleName>\\S+)</string>").matchEntire(outputLine)
+                    val regexResult = Regex("\\s+<string>(?<moduleName>\\S+)<\\/string>").matchEntire(outputLine)
                     val matchedModuleName = regexResult?.groups?.get("moduleName")
                     // TODO: simplify, as we can not build the whole tree with help:evaluate
                     if(matchedModuleName != null) {
                         val parent = releaseCoordinate
-                        val module = ReleaseCoordinate(
-                            parent.groupId,
-                            ArtifactId(matchedModuleName.value),
-                            parent.version
-                        )
-                        log.debug { "Registering module. Parent $parent -> module $module" }
-                        moduleTree.merge(parent, mutableSetOf(module)) { set, newSet -> (set + newSet).toMutableSet() }
-                        log.debug { "Modules of $parent: ${moduleTree[parent]?.joinToString()}" }
+                        val module = parent.copy(artifactId = ArtifactId(matchedModuleName.value))
+                        log.debug { "Registering module candidate. Parent $parent -> module $module" }
+                        moduleCandidates += module
                     }
                 }
             }
+            log.debug { "Trying to resolve modules of ${moduleCandidates.size} possible modules: $moduleCandidates" }
+            moduleCandidates
+                .map { resolveModulesRecursively(it) }
+                .flatMap { it.entries }
+                .forEach { (parent, modules) ->
+                    // add the module's modules to this tree
+                    moduleTree.addModulesToParent(parent, modules)
+                    // the module is in fact a module of this release
+                    moduleTree.addModulesToParent(releaseCoordinate, setOf(parent))
+                }
             log.info { "Resolved modules of $releaseCoordinate" }
             log.info { "$releaseCoordinate has ${moduleTree[releaseCoordinate]?.size?:0} modules. Found ${moduleTree.keys.size} module parents total and ${moduleTree.values.sumOf { it.size }} modules total" }
             moduleTree
         }
+    }
+
+    private fun MutableMap<ReleaseCoordinate, MutableSet<ReleaseCoordinate>>.addModulesToParent(
+        parent: ReleaseCoordinate,
+        modules: Set<ReleaseCoordinate>
+    ) {
+        merge(
+            parent,
+            modules.toMutableSet()
+        ) { a, b -> (a + b).toMutableSet() }
     }
 
     /**

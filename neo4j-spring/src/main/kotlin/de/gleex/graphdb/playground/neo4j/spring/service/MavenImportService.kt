@@ -50,10 +50,12 @@ class MavenImportService(private val mavenConfig: MavenConfig, private val clien
         return savedDependencies
     }
 
-    private suspend fun createModulesForArtifact(releaseCoordinate: ReleaseCoordinate): Set<ArtifactCoordinate> {
+    suspend fun createModulesForArtifact(releaseCoordinate: ReleaseCoordinate): Set<ArtifactCoordinate> {
         return coroutineScope {
+            log.info { "Finding and importing modules of release $releaseCoordinate" }
             var savedModules: Set<ArtifactCoordinate> = emptySet()
             val moduleTree: Map<ReleaseCoordinate, Set<ReleaseCoordinate>> = MavenCaller(mavenConfig).resolveModulesRecursively(releaseCoordinate)
+            log.info { "Resolved module tree for $releaseCoordinate: $moduleTree" }
             val dbAccess = DirectDatabaseAccess(client)
             moduleTree
                 .filterValues { it.isNotEmpty() }

@@ -61,4 +61,13 @@ class ReleaseController(private val releaseService: ReleaseService, private val 
     ): Artifact {
         return importService.import(ReleaseCoordinate(GroupId(groupId), ArtifactId(artifactId), Version(version)))
     }
+
+    @PostMapping("/modules/{groupId}/{artifactId}/{version}")
+    suspend fun modules(
+        @PathVariable(required = true) groupId: String,
+        @PathVariable(required = true) artifactId: String,
+        @PathVariable(required = true) version: String
+    ): Set<ArtifactCoordinate> {
+        return importService.createModulesForArtifact(ReleaseCoordinate(GroupId(groupId), ArtifactId(artifactId), Version(version)))
+    }
 }
