@@ -69,7 +69,6 @@ class MavenImportService(private val mavenConfig: MavenConfig, private val clien
                 }
             savedModules
         }
-        // mvn -Dexec.executable='echo' -Dexec.args='${project.parent.groupId}:${project.parent.artifactId}:${project.parent.version} -> ${project.groupId}:${project.artifactId}:${project.version}' exec:exec -q
     }
 
     private suspend fun createParent(releaseCoordinate: ReleaseCoordinate): ReleaseCoordinate? {
