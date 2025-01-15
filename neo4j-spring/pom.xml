@@ -56,8 +56,8 @@
         </dependency>
         <dependency>
             <groupId>io.github.allangomes</groupId>
-            <artifactId>kotlinwind-css</artifactId>
-            <version>0.0.4</version>
+            <artifactId>kotlinwind-css-jvm</artifactId>
+            <version>0.1.0</version>
         </dependency>
 
         <dependency>
