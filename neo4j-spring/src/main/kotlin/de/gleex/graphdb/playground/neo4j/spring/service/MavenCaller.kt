@@ -78,35 +78,14 @@ class MavenCaller(private val config: MavenConfig) {
      * @return a map of parent to list of modules
      */
     suspend fun resolveModulesRecursively(releaseCoordinate: ReleaseCoordinate): Map<ReleaseCoordinate, Set<ReleaseCoordinate>> {
-        // TODO: implement some way to resolve artifact modules
         return coroutineScope {
             log.info { "Resolving modules of $releaseCoordinate" }
             val moduleTree: MutableMap<ReleaseCoordinate, MutableSet<ReleaseCoordinate>> = mutableMapOf(releaseCoordinate to mutableSetOf())
             val pomPath = locatePomFile(releaseCoordinate) ?: return@coroutineScope moduleTree
-            val moduleCandidates = mutableSetOf<ReleaseCoordinate>()
-            executeMaven("resolve modules of $releaseCoordinate") {
-                goals = listOf("help:evaluate")
-                isQuiet = false
-                isBatchMode = true
-                addArgs(listOf(
-                    "-Dexpression=project.modules",
-                    "-Dartifact=$releaseCoordinate"
-                ))
-                setOutputHandler { outputLine ->
-                    log.debug { "[resolveModules] $outputLine" }
-                    val regexResult = Regex("\\s+<string>(?<moduleName>\\S+)<\\/string>").matchEntire(outputLine)
-                    val matchedModuleName = regexResult?.groups?.get("moduleName")
-                    // TODO: simplify, as we can not build the whole tree with help:evaluate
-                    if(matchedModuleName != null) {
-                        val parent = releaseCoordinate
-                        val module = parent.copy(artifactId = ArtifactId(matchedModuleName.value))
-                        log.debug { "Registering module candidate. Parent $parent -> module $module" }
-                        moduleCandidates += module
-                    }
-                }
-            }
+            val moduleCandidates = getModuleArtifactIds(releaseCoordinate)
             log.debug { "Trying to resolve modules of ${moduleCandidates.size} possible modules: $moduleCandidates" }
             moduleCandidates
+                .map { releaseCoordinate.copy(artifactId = it) }
                 .map { resolveModulesRecursively(it) }
                 .flatMap { it.entries }
                 .forEach { (parent, modules) ->
@@ -119,6 +98,36 @@ class MavenCaller(private val config: MavenConfig) {
             log.info { "$releaseCoordinate has ${moduleTree[releaseCoordinate]?.size?:0} modules. Found ${moduleTree.keys.size} module parents total and ${moduleTree.values.sumOf { it.size }} modules total" }
             moduleTree
         }
+    }
+
+    /**
+     * Reads the [ArtifactId]s from the `<modules>` list of the given release.
+     */
+    suspend fun getModuleArtifactIds(releaseCoordinate: ReleaseCoordinate): Set<ArtifactId> {
+        val moduleCandidates = mutableSetOf<ArtifactId>()
+        executeMaven("resolve modules of $releaseCoordinate") {
+            goals = listOf("help:evaluate")
+            isQuiet = false
+            isBatchMode = true
+            addArgs(
+                listOf(
+                    "-Dexpression=project.modules",
+                    "-Dartifact=$releaseCoordinate"
+                )
+            )
+            setOutputHandler { outputLine ->
+                log.debug { "[resolveModules] $outputLine" }
+                val regexResult = Regex("\\s+<string>(?<moduleName>\\S+)<\\/string>").matchEntire(outputLine)
+                val matchedModuleName = regexResult?.groups?.get("moduleName")
+                // TODO: simplify, as we can not build the whole tree with help:evaluate
+                if (matchedModuleName != null) {
+                    val module = ArtifactId(matchedModuleName.value)
+                    log.debug { "Found module candidate. Parent $releaseCoordinate -> module $module" }
+                    moduleCandidates += module
+                }
+            }
+        }
+        return moduleCandidates
     }
 
     private fun MutableMap<ReleaseCoordinate, MutableSet<ReleaseCoordinate>>.addModulesToParent(

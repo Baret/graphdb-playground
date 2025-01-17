@@ -52,6 +52,7 @@ class MavenImportService(private val mavenConfig: MavenConfig, private val clien
 
     suspend fun createModulesForArtifact(releaseCoordinate: ReleaseCoordinate): Set<ArtifactCoordinate> {
         return coroutineScope {
+            // TODO: only set module if parent matches
             log.info { "Finding and importing modules of release $releaseCoordinate" }
             var savedModules: Set<ArtifactCoordinate> = emptySet()
             val moduleTree: Map<ReleaseCoordinate, Set<ReleaseCoordinate>> = MavenCaller(mavenConfig).resolveModulesRecursively(releaseCoordinate)
@@ -84,7 +85,30 @@ class MavenImportService(private val mavenConfig: MavenConfig, private val clien
                             parent = parent
                         )
                     }
+                    launch {
+                        saveArtifactModule(child = releaseCoordinate, parent = parent)
+                    }
                 }
+        }
+    }
+
+    private suspend fun saveArtifactModule(child: ReleaseCoordinate, parent: ReleaseCoordinate) {
+        coroutineScope {
+            log.debug { "Trying to detect if $child is a module of $parent to save the artifact's module relation" }
+            val mavenCaller = MavenCaller(mavenConfig)
+            val moduleArtifactIds = mavenCaller.getModuleArtifactIds(parent)
+            if(moduleArtifactIds.contains(child.artifactId)) {
+                log.debug { "$child seems to be a module of $parent. Saving artifact HAS_MODULE relation" }
+                DirectDatabaseAccess(client).saveArtifactModule(
+                    parent = ArtifactCoordinate(
+                        parent.groupId,
+                        parent.artifactId
+                    ),
+                    module = ArtifactCoordinate(child.groupId, child.artifactId)
+                )
+            } else {
+                log.debug { "$child does not seem to be a module of $parent. The parent's modules are: ${moduleArtifactIds.joinToString { it.aId }}" }
+            }
         }
     }
 }

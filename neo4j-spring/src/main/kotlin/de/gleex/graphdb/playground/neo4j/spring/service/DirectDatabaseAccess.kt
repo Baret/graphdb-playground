@@ -12,6 +12,7 @@ import org.neo4j.driver.summary.ResultSummary
 import org.springframework.data.neo4j.core.Neo4jClient
 import java.util.*
 import java.util.concurrent.TimeUnit
+import kotlin.math.cos
 
 private val log = KotlinLogging.logger {  }
 
@@ -62,8 +63,12 @@ class DirectDatabaseAccess(private val client: Neo4jClient) {
 
     suspend fun saveReleaseWithParent(child: ReleaseCoordinate, parent: ReleaseCoordinate) {
         coroutineScope {
+            val artifactsToSave: Channel<ReleaseCoordinate> = Channel()
+            launch(Dispatchers.IO) { saveArtifacts(artifactsToSave) }
+            log.debug { "Saving parent $parent with child $child" }
+            artifactsToSave.send(child)
+            artifactsToSave.send(parent)
             launch(Dispatchers.IO) {
-                log.debug { "Saving parent $parent with child $child" }
                 val resultSummary: ResultSummary = client.query {
                     """
                         ${parent.mergeClause("p")}
@@ -77,6 +82,7 @@ class DirectDatabaseAccess(private val client: Neo4jClient) {
                 log.debug { "${resultSummary.notifications().size} notifications after saving parent $parent with child $child:" }
                 resultSummary.notifications().forEach { log.debug { "\t$it" } }
             }
+            artifactsToSave.close()
         }
     }
 
@@ -105,6 +111,22 @@ class DirectDatabaseAccess(private val client: Neo4jClient) {
             }
         }
         return dependency
+    }
+
+    suspend fun saveArtifactModule(parent: ArtifactCoordinate, module: ArtifactCoordinate) {
+        log.debug { "Saving module $module for artifact $parent" }
+        coroutineScope {
+//            launch(Dispatchers.IO) {
+//                val resultSummary: ResultSummary = client.query {
+//                    """
+//                        ${releaseCoordinate.mergeClause()}
+//                        RETURN r
+//                    """.trimIndent()
+//                }
+//                    .run()
+//                log.debug { "Saved module $module with its parent $parent in ${resultSummary.resultAvailableAfter(TimeUnit.MILLISECONDS)} ms. Summary: $resultSummary" }
+//            }
+        }
     }
 
     private suspend fun saveReleaseAndArtifact(
