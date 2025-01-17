@@ -116,16 +116,18 @@ class DirectDatabaseAccess(private val client: Neo4jClient) {
     suspend fun saveArtifactModule(parent: ArtifactCoordinate, module: ArtifactCoordinate) {
         log.debug { "Saving module $module for artifact $parent" }
         coroutineScope {
-//            launch(Dispatchers.IO) {
-//                val resultSummary: ResultSummary = client.query {
-//                    """
-//                        ${releaseCoordinate.mergeClause()}
-//                        RETURN r
-//                    """.trimIndent()
-//                }
-//                    .run()
-//                log.debug { "Saved module $module with its parent $parent in ${resultSummary.resultAvailableAfter(TimeUnit.MILLISECONDS)} ms. Summary: $resultSummary" }
-//            }
+            launch(Dispatchers.IO) {
+                val resultSummary: ResultSummary = client.query {
+                    """
+                        MERGE ${parent.getCypherNode("p")}
+                        MERGE ${module.getCypherNode("m")}
+                        MERGE (p) -[dep:HAS_MODULE]-> (m)
+                        RETURN p, dep, m
+                    """.trimIndent()
+                }
+                    .run()
+                log.debug { "Saved module $module with its parent $parent in ${resultSummary.resultAvailableAfter(TimeUnit.MILLISECONDS)} ms. Summary: $resultSummary" }
+            }
         }
     }
 
