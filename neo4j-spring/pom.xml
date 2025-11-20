@@ -16,7 +16,7 @@
     <description>A spring boot application with Spring Data neo4j</description>
 
     <properties>
-        <spring.boot.version>3.5.7</spring.boot.version>
+        <spring.boot.version>3.5.8</spring.boot.version>
     </properties>
 
     <dependencyManagement>
